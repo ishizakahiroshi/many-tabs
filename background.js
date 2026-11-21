@@ -55,6 +55,7 @@ async function snapshot(windowId) {
     tabs: tabs.sort((a, b) => a.index - b.index).map(t => ({
       id: t.id, index: t.index, title: t.title || '', url: t.url || '', active: !!t.active,
       pinned: !!t.pinned, groupId: t.groupId, audible: !!t.audible,
+      hasFav: !!t.favIconUrl,
       muted: !!(t.mutedInfo && t.mutedInfo.muted)
     })),
     groups: groups.map(g => ({ id: g.id, title: g.title || '', color: g.color || 'grey' }))

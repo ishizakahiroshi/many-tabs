@@ -565,9 +565,9 @@
     r.draggable = true;
     const main = el('button', 'main');
     main.type = 'button';
-    const src = faviconUrl(tab.url);
+    const src = tab.hasFav ? faviconUrl(tab.url) : null;
     // _favicon はアイコンが無いページで Chrome が内部エラーを記録する。
-    // 一度失敗した URL は再要求せずフォールバックを出し、エラーログの増殖を止める
+    // favIconUrl の無いタブは要求せず、一度失敗した URL も再要求しない
     if (src && !state.faviconFail.has(src)) {
       const img = el('img', 'fav');
       img.alt = '';
