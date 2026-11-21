@@ -24,9 +24,12 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
 // content script からは chrome.tabs API を直接使えないため、
 // 一覧はここで作って送り、操作は送り元と同じウィンドウのタブに限って受理する。
 
-// タブごとのレール表示設定（メモリのみ・永続化しない）。
-// ページ内で切り替えたモード・位置を同じタブの画面遷移をまたいで保持する。
+// タブごとのレール表示モード（メモリのみ・永続化しない）。
+// ページ内で切り替えたモードを同じタブの画面遷移をまたいで保持する。
 const railPrefs = new Map();
+// 位置はタブをまたぐと戻って見えるため、セッション全体の既定として共有する
+// （どこかで切り替えたら全タブへ即時反映・再起動で消える）
+let SESSION_POSITION = null;
 
 const PUSH_DEBOUNCE_MS = 80;
 const pushTimers = new Map();
@@ -47,7 +50,7 @@ async function snapshot(windowId) {
   return {
     type: 'rail-tabs',
     mode: COLLAPSED_MODE,
-    position: POSITION,
+    position: SESSION_POSITION || POSITION,
     overrides: OVERRIDES,
     tabs: tabs.sort((a, b) => a.index - b.index).map(t => ({
       id: t.id, index: t.index, title: t.title || '', url: t.url || '', active: !!t.active,
@@ -94,11 +97,19 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     return true;
   }
   if (msg.type === 'rail-pref') {
-    // ページ内切替をタブ単位で記憶する（メモリのみ・ストレージ不使用）
-    const pref = {};
+    // モードはタブ単位、位置はセッション全体で記憶する（メモリのみ・ストレージ不使用）
+    const pref = railPrefs.get(sender.tab.id) || {};
     if (typeof msg.mode === 'string') pref.mode = msg.mode;
-    if (typeof msg.position === 'string') pref.position = msg.position;
     railPrefs.set(sender.tab.id, pref);
+    if (typeof msg.position === 'string' && msg.position !== SESSION_POSITION) {
+      SESSION_POSITION = msg.position;
+      // 位置の変更は開いている全タブのレールへ即時反映する
+      chrome.tabs.query({}).then(tabs => {
+        for (const t of tabs) {
+          chrome.tabs.sendMessage(t.id, { type: 'rail-pref-position', position: SESSION_POSITION }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
     return false;
   }
   action(msg, win);

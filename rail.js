@@ -193,7 +193,8 @@
     tabs: [], groups: new Map(), filter: '', pointerNear: false,
     draggedTabId: null, renderDeferred: false, menuTabId: null,
     mode: 'translucent', defaultMode: 'translucent', modeTouched: false,
-    position: 'right', defaultPosition: 'right', positionTouched: false
+    position: 'right', defaultPosition: 'right', positionTouched: false,
+    ovPosition: null
   };
 
   const host = document.createElement('div');
@@ -681,17 +682,21 @@
     state.groups = new Map((data.groups || []).map(g => [g.id, g]));
     if (typeof data.mode === 'string') state.defaultMode = data.mode;
     if (typeof data.position === 'string') state.defaultPosition = data.position;
+    state.ovPosition = null;
     if (data.overrides && typeof data.overrides === 'object') {
       const ov = hostOverride(data.overrides);
       if (ov) {
         if (typeof ov.collapsedMode === 'string') state.defaultMode = ov.collapsedMode;
-        if (typeof ov.position === 'string') state.defaultPosition = ov.position;
+        if (typeof ov.position === 'string') {
+          state.defaultPosition = ov.position;
+          state.ovPosition = ov.position;
+        }
       }
     }
-    // このタブで以前切り替えた設定（画面遷移をまたいで保持される・background のメモリのみ）
+    // このタブで以前切り替えたモード（画面遷移をまたいで保持・background のメモリのみ。
+    // 位置はタブ単位ではなくセッション全体の既定として snapshot の position に載る）
     if (data.tabPref && typeof data.tabPref === 'object') {
       if (typeof data.tabPref.mode === 'string') state.defaultMode = data.tabPref.mode;
-      if (typeof data.tabPref.position === 'string') state.defaultPosition = data.tabPref.position;
     }
     if (!state.modeTouched) setMode(state.defaultMode);
     if (!state.positionTouched) setPosition(state.defaultPosition);
@@ -737,6 +742,14 @@
   });
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'rail-tabs' && Array.isArray(msg.tabs)) accept(msg);
+    // どこかのタブで位置が変えられたとき、自分のページで未変更かつ
+    // サイト別 overrides で位置を固定していなければ追従する
+    if (msg && msg.type === 'rail-pref-position' && typeof msg.position === 'string') {
+      if (!state.positionTouched && !state.ovPosition) {
+        state.defaultPosition = msg.position;
+        setPosition(state.defaultPosition);
+      }
+    }
   });
   chrome.runtime.sendMessage({ type: 'rail-init' }, (resp) => {
     if (chrome.runtime.lastError || !resp) return;
