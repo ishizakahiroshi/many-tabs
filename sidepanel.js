@@ -7,6 +7,63 @@
 // - ユーザーが開いたサイトのfaviconはChrome内蔵favicon APIのローカルURLだけで描画。
 // - タブタイトル・URLをinnerHTMLに書き込まず、常にtextContentを使う。
 
+// 文言は _locales/<code>/messages.json に集約（言語追加はファイル1本）。
+// i18n/<code>.js は言語切替用の実行時カタログ（script タグで読む MANY_TABS_MSGS）。
+// 切替はセッション全体で共有・永続化しない（再起動でブラウザの言語へ戻る）
+let sessionLang = null;
+function catalogText(cat, key, subs) {
+  const e = cat && cat[key];
+  if (!e || typeof e.message !== 'string') return null;
+  let s = e.message;
+  if (e.placeholders) for (const name of Object.keys(e.placeholders)) {
+    const c = /^\$(\d+)$/.exec(String(e.placeholders[name].content || ''));
+    const v = c ? String(subs[Number(c[1]) - 1] ?? '') : String(e.placeholders[name].content ?? '');
+    s = s.split('$' + name + '$').join(v);
+  }
+  return s;
+}
+function _t(key, ...subs) {
+  const s = catalogText(
+    sessionLang ? ((globalThis.MANY_TABS_MSGS || {})[sessionLang] || null) : null,
+    key, subs);
+  if (s !== null) return s;
+  return chrome.i18n.getMessage(key, subs.map(String)) || key;
+}
+function applyI18n() {
+  for (const el of document.querySelectorAll('[data-i18n]')) {
+    const m = _t(el.dataset.i18n); if (m) el.textContent = m;
+  }
+  for (const el of document.querySelectorAll('[data-i18n-placeholder]')) {
+    const m = _t(el.dataset.i18nPlaceholder); if (m) el.placeholder = m;
+  }
+  for (const el of document.querySelectorAll('[data-i18n-title]')) {
+    const m = _t(el.dataset.i18nTitle); if (m) el.title = m;
+  }
+  for (const el of document.querySelectorAll('[data-i18n-aria-label]')) {
+    const m = _t(el.dataset.i18nAriaLabel); if (m) el.setAttribute('aria-label', m);
+  }
+  document.documentElement.lang = (sessionLang || chrome.i18n.getUILanguage() || 'ja').split('-')[0];
+  document.title = _t('appName');
+}
+function applyLang() {
+  applyI18n();
+  render();
+}
+function setLang(code, propagate = true) {
+  sessionLang = code;
+  applyLang();
+  if (propagate) chrome.runtime.sendMessage({ type: 'rail-pref', lang: code });
+}
+applyI18n();
+// 別の画面（レール等）で切り替え済みの言語設定を引き継ぐ
+chrome.runtime.sendMessage({ type: 'lang-get' }, (resp) => {
+  if (chrome.runtime.lastError || !resp) return;
+  if (typeof resp.lang === 'string' || resp.lang === null) {
+    sessionLang = resp.lang;
+    applyLang();
+  }
+});
+
 const list = document.getElementById('tabList');
 const search = document.getElementById('tabSearch');
 const count = document.getElementById('tabCount');
@@ -31,7 +88,7 @@ function node(tag, cls, content) {
 }
 function onError(error) {
   console.error('Many Tabs:', error);
-  toast.textContent = error?.message || '操作に失敗しました。';
+  toast.textContent = error?.message || _t('operationFailed');
   toast.hidden = false;
   clearTimeout(state.toastTimer);
   state.toastTimer = setTimeout(() => { toast.hidden = true; }, 3500);
@@ -56,13 +113,13 @@ function releasePointer() {
   setTimeout(flushDeferredRender, 0);
 }
 function domainFromUrl(url) {
-  if (!url) return '新しいタブ';
+  if (!url) return _t('newTab');
   try {
     const u = new URL(url);
     if (u.protocol === 'http:' || u.protocol === 'https:') return u.hostname;
-    if (u.protocol === 'file:') return 'ローカルファイル';
+    if (u.protocol === 'file:') return _t('localFile');
     return u.protocol.replace(':', '');
-  } catch { return 'ページ'; }
+  } catch { return _t('pageFallback'); }
 }
 function faviconUrl(url) {
   if (!url) return null;
@@ -86,7 +143,7 @@ function scheduleRender() {
 async function loadTabs() {
   if (state.windowId === null) {
     const w = await chrome.windows.getCurrent();
-    if (!Number.isInteger(w.id)) throw new Error('Chromeウィンドウを確認できません。');
+    if (!Number.isInteger(w.id)) throw new Error(_t('windowNotFound'));
     state.windowId = w.id;
   }
   const [tabs, groups] = await Promise.all([
@@ -106,11 +163,11 @@ function groupHeader(group, matchingCount, totalCount) {
   const head = node('button', 'group-header' + (group.collapsed ? ' is-collapsed' : ''));
   head.type = 'button';
   head.setAttribute('aria-expanded', String(!group.collapsed));
-  head.title = 'クリックでグループを開閉';
+  head.title = _t('groupToggleHint');
   head.append(node('span', 'chevron', '▾'));
   const color = node('span', 'group-color');
   color.style.setProperty('--group-color', COLORS[group.color] || COLORS.grey);
-  head.append(color, node('span', 'group-title', group.title || '名前のないグループ'));
+  head.append(color, node('span', 'group-title', group.title || _t('unnamedGroup')));
   head.append(node('span', 'group-count', matchingCount === totalCount ? totalCount : `${matchingCount}/${totalCount}`));
   head.addEventListener('click', () => action(async () => {
     await chrome.tabGroups.update(group.id, { collapsed: !group.collapsed });
@@ -140,11 +197,11 @@ function tabRow(tab) {
   const row = node('div', 'tab-row' + (tab.active ? ' is-active' : ''));
   row.dataset.tabId = String(tab.id);
   row.draggable = true;
-  row.title = tab.title || '名称なし';
+  row.title = tab.title || _t('untitledTab');
   const main = node('button', 'tab-main');
   main.type = 'button';
-  main.title = tab.title || '名称なし';
-  main.setAttribute('aria-label', `タブに切り替え: ${tab.title || '名称なし'}`);
+  main.title = tab.title || _t('untitledTab');
+  main.setAttribute('aria-label', _t('switchToTab', tab.title || _t('untitledTab')));
   const iconUrl = faviconUrl(tab.url);
   if (iconUrl) {
     const img = node('img', 'tab-favicon');
@@ -158,7 +215,7 @@ function tabRow(tab) {
     main.append(node('span', 'tab-fallback', '◇'));
   }
   const textWrap = node('span', 'tab-text');
-  textWrap.append(node('span', 'tab-title', tab.title || (tab.url ? '読み込み中…' : '新しいタブ')));
+  textWrap.append(node('span', 'tab-title', tab.title || (tab.url ? _t('loading') : _t('newTab'))));
   textWrap.append(node('span', 'tab-domain', domainFromUrl(tab.url)));
   main.append(textWrap);
   main.addEventListener('click', () => action(() => chrome.tabs.update(tab.id, { active: true })));
@@ -167,26 +224,26 @@ function tabRow(tab) {
   const extra = node('div', 'tab-extra');
   if (tab.pinned) {
     const pin = node('span', 'tab-indicator', '●');
-    pin.title = '固定済み';
+    pin.title = _t('pinnedBadge');
     extra.append(pin);
   }
   if (tab.audible || tab.mutedInfo?.muted) {
     const audible = node('span', 'tab-indicator muted', tab.mutedInfo?.muted ? '♪̸' : '♪');
-    audible.title = tab.mutedInfo?.muted ? 'ミュート中' : '音声再生中';
+    audible.title = tab.mutedInfo?.muted ? _t('mutedBadge') : _t('audibleBadge');
     extra.append(audible);
   }
   const more = node('button', 'tab-mini', '⋯');
   more.type = 'button';
-  more.setAttribute('aria-label', `「${tab.title || 'タブ'}」の操作メニュー`);
-  more.title = '操作メニュー';
+  more.setAttribute('aria-label', _t('tabMenuAria', tab.title || _t('tabWord')));
+  more.title = _t('actionsMenu');
   more.addEventListener('click', (event) => {
     event.stopPropagation();
     openMenu(tab, more.getBoundingClientRect());
   });
   const close = node('button', 'tab-mini', '×');
   close.type = 'button';
-  close.setAttribute('aria-label', `「${tab.title || 'タブ'}」を閉じる`);
-  close.title = 'タブを閉じる';
+  close.setAttribute('aria-label', _t('closeTabAria', tab.title || _t('tabWord')));
+  close.title = _t('closeTab');
   close.addEventListener('click', (event) => {
     event.stopPropagation();
     action(() => chrome.tabs.remove(tab.id));
@@ -250,25 +307,25 @@ function render() {
   if (interacting()) { state.renderDeferred = true; return; }
   state.renderDeferred = false;
   // メニューは、対象のタブが無くなったときだけ閉じる（ほかのタブの表示が変わっただけでは閉じない）。
-  if (!menu.hidden && !state.tabs.some(t => t.id === state.menuTabId)) closeMenu();
+  if (!menu.hidden && typeof state.menuTabId === 'number' && !state.tabs.some(t => t.id === state.menuTabId)) closeMenu();
   const filter = search.value.trim().toLocaleLowerCase();
   const matching = tab => !filter || `${tab.title || ''}\n${tab.url || ''}`.toLocaleLowerCase().includes(filter);
   const matches = state.tabs.filter(matching);
-  count.textContent = filter ? `検索結果 ${matches.length} 件 / 全 ${state.tabs.length} 件` : `${state.tabs.length} 個のタブ`;
+  count.textContent = filter ? _t('searchResultCount', matches.length, state.tabs.length) : _t('tabCount', state.tabs.length);
   const out = document.createDocumentFragment();
   if (matches.length === 0) {
-    out.append(node('div', 'empty-state', filter ? '一致するタブがありません。\n検索語を変えてみてください。' : 'タブがありません。\n＋から新しいタブを開けます。'));
+    out.append(node('div', 'empty-state', filter ? _t('noMatchingTabsHint') : _t('noTabsHint')));
     list.replaceChildren(out);
     return;
   }
   const pinned = state.tabs.filter(t => t.pinned && matching(t));
   if (pinned.length) {
-    out.append(sectionLabel('固定したタブ', pinned.length));
+    out.append(sectionLabel(_t('pinnedSection'), pinned.length));
     appendTabRows(out, pinned);
   }
   const normal = state.tabs.filter(t => !t.pinned);
   const hasNormalMatches = normal.some(matching);
-  if (hasNormalMatches) out.append(sectionLabel('タブ', normal.filter(matching).length));
+  if (hasNormalMatches) out.append(sectionLabel(_t('tabsSection'), normal.filter(matching).length));
   const seen = new Set();
   for (const tab of normal) {
     if (tab.groupId === NONE) {
@@ -314,27 +371,27 @@ function openMenu(tab, anchor) {
     });
     menu.append(b);
   }
-  addMenuItem(tab.pinned ? '固定を解除' : 'タブを固定', () => chrome.tabs.update(tab.id, { pinned: !tab.pinned }));
-  addMenuItem(tab.mutedInfo?.muted ? 'ミュート解除' : 'タブをミュート', () => chrome.tabs.update(tab.id, { muted: !tab.mutedInfo?.muted }));
-  addMenuItem('タブを複製', () => chrome.tabs.duplicate(tab.id));
+  addMenuItem(tab.pinned ? _t('unpinTab') : _t('pinTab'), () => chrome.tabs.update(tab.id, { pinned: !tab.pinned }));
+  addMenuItem(tab.mutedInfo?.muted ? _t('unmuteTab') : _t('muteTab'), () => chrome.tabs.update(tab.id, { muted: !tab.mutedInfo?.muted }));
+  addMenuItem(_t('duplicateTab'), () => chrome.tabs.duplicate(tab.id));
   if (!tab.pinned) {
     if (tab.groupId !== NONE) {
-      addMenuItem('グループから外す', () => chrome.tabs.ungroup([tab.id]));
+      addMenuItem(_t('removeFromGroup'), () => chrome.tabs.ungroup([tab.id]));
     }
-    addMenuItem('新しいグループを作る', async () => {
+    addMenuItem(_t('newGroup'), async () => {
       const id = await chrome.tabs.group({ tabIds: [tab.id], createProperties: { windowId: state.windowId } });
-      await chrome.tabGroups.update(id, { title: '新しいグループ', color: 'blue' });
+      await chrome.tabGroups.update(id, { title: _t('newGroupTitle'), color: 'blue' });
     });
     const otherGroups = Array.from(state.groups.values()).filter(g => g.id !== tab.groupId);
     if (otherGroups.length) {
       menu.append(node('div', 'menu-separator'));
       for (const g of otherGroups) {
-        addMenuItem(`「${g.title || '名前なし'}」に移動`, () => chrome.tabs.group({ tabIds: [tab.id], groupId: g.id }));
+        addMenuItem(_t('moveToGroup', g.title || _t('unnamedShort')), () => chrome.tabs.group({ tabIds: [tab.id], groupId: g.id }));
       }
     }
   }
   menu.append(node('div', 'menu-separator'));
-  addMenuItem('タブを閉じる', () => chrome.tabs.remove(tab.id), true);
+  addMenuItem(_t('closeTab'), () => chrome.tabs.remove(tab.id), true);
   menu.hidden = false;
   const width = menu.getBoundingClientRect().width;
   const height = menu.getBoundingClientRect().height;
@@ -343,8 +400,34 @@ function openMenu(tab, anchor) {
   menu.style.top = `${Math.max(8, Math.min(preferred, window.innerHeight - height - 8))}px`;
   menu.querySelector('button')?.focus();
 }
+// 言語切替メニュー（🌐ボタン）。menuTabId='lang' でタブメニューと区別する
+function openLangMenu(rect) {
+  closeMenu();
+  state.menuTabId = 'lang';
+  for (const [key, code] of [['langAuto', null], ['langJa', 'ja'], ['langEn', 'en']]) {
+    const b = node('button', '', (sessionLang === code ? '✓ ' : '　') + _t('languageLabel', _t(key)));
+    b.type = 'button';
+    b.setAttribute('role', 'menuitem');
+    b.addEventListener('click', () => {
+      closeMenu();
+      setLang(code);
+    });
+    menu.append(b);
+  }
+  menu.hidden = false;
+  const width = menu.getBoundingClientRect().width;
+  const height = menu.getBoundingClientRect().height;
+  menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - height - 8))}px`;
+  menu.querySelector('button')?.focus();
+}
 
 search.addEventListener('input', render);
+document.getElementById('langButton').addEventListener('click', (event) => {
+  event.stopPropagation();
+  const b = document.getElementById('langButton').getBoundingClientRect();
+  openLangMenu({ left: b.right, bottom: b.bottom });
+});
 document.getElementById('newTabButton').addEventListener('click', () => {
   action(() => chrome.tabs.create({ windowId: state.windowId, active: true }));
 });
@@ -378,4 +461,12 @@ chrome.tabGroups.onCreated.addListener(scheduleRender);
 chrome.tabGroups.onUpdated.addListener(scheduleRender);
 chrome.tabGroups.onRemoved.addListener(scheduleRender);
 chrome.tabGroups.onMoved.addListener(scheduleRender);
+// レール側で切り替えられた言語へ追従する（'rail-pref' の lang 項目がそのまま届く）
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.type === 'rail-pref' && 'lang' in msg) {
+    const code = (typeof msg.lang === 'string' && globalThis.MANY_TABS_MSGS && globalThis.MANY_TABS_MSGS[msg.lang])
+      ? msg.lang : null;
+    if ((msg.lang === null || code !== null) && code !== sessionLang) setLang(code, false);
+  }
+});
 action(loadTabs);

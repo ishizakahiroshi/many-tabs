@@ -10,6 +10,26 @@
   if (document.getElementById(HOST_ID)) return;
 
   const NONE = -1; // chrome.tabGroups.TAB_GROUP_ID_NONE（content script では定数を参照できない）
+  // 文言は _locales/<code>/messages.json に集約（言語追加はファイル1本）。
+  // chrome.i18n は content script でも使える。
+  // ユーザーが拡張内で言語を切り替えたときは、background から届く実行時カタログ
+  // （messages.json と同じ形）を先に引く。content script は自分でファイルを読めないため
+  function catalogText(cat, key, subs) {
+    const e = cat && cat[key];
+    if (!e || typeof e.message !== 'string') return null;
+    let s = e.message;
+    if (e.placeholders) for (const name of Object.keys(e.placeholders)) {
+      const c = /^\$(\d+)$/.exec(String(e.placeholders[name].content || ''));
+      const v = c ? String(subs[Number(c[1]) - 1] ?? '') : String(e.placeholders[name].content ?? '');
+      s = s.split('$' + name + '$').join(v);
+    }
+    return s;
+  }
+  function _t(key, ...subs) {
+    const s = catalogText(state.lang ? state.msgs : null, key, subs);
+    if (s !== null) return s;
+    return chrome.i18n.getMessage(key, subs.map(String)) || key;
+  }
   const COLORS = {
     grey: '#9198a6', blue: '#63a5f7', red: '#f07474', yellow: '#e6bd60',
     green: '#65c998', pink: '#e48fca', purple: '#ac91e7', cyan: '#6ccfd9', orange: '#eda56c'
@@ -47,7 +67,7 @@
     .rail.pos-top.is-open{border-bottom-color:#313b4d}
     .rail.pos-bottom.is-open{border-top-color:#313b4d}
     .rail.pos-top.is-slim:not(.is-open),.rail.pos-bottom.is-slim:not(.is-open){height:16px;width:100%}
-    .rail.pos-top .grip,.rail.pos-bottom .grip,.rail.free-h .grip{width:14px;height:auto}
+    .rail.pos-top .grip,.rail.pos-bottom .grip,.rail.free-h .grip{width:auto;min-width:28px;height:auto;padding:0 2px}
     .rail.pos-top .list,.rail.pos-bottom .list,.rail.free-h .list{
       display:flex;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:0 4px}
     .rail.pos-top .row,.rail.pos-bottom .row,.rail.free-h .row{height:auto}
@@ -137,13 +157,12 @@
     .notch:hover{background-color:rgba(35,45,62,.9)}
     /* 移動ハンドルは「移動」の文字ラベルで出す（アイコンより意図が伝わる）。
        畳んだ帯でも常時出す（設定のすぐ上）。ここを掴んで別の辺・浮き配置へ動かせる。
-       横帯の狭いセルでは縦書きにする */
+       横帯でもセルを横文字が入る幅にして、全ポジションで横書き表示に統一する
+       （縦セル内の縦積み・回転表示は欧文が読みにくいため廃止） */
     .grip{display:flex;align-items:center;justify-content:center;height:14px;
       cursor:grab;flex:none;position:relative;font-size:11px;line-height:1;
       color:rgba(210,220,236,.95);pointer-events:auto}
-    .grip::before{content:'移動'}
-    .rail.pos-top .grip::before,.rail.pos-bottom .grip::before,
-    .rail.free-h .grip::before{writing-mode:vertical-rl;font-size:9px}
+    .grip::before{content:attr(data-label)}
     .rail.is-dock-dragging .grip{cursor:grabbing}
     .zone{position:fixed;background:rgba(70,130,240,.18);pointer-events:none}
     .zone.z-on{background:rgba(70,130,240,.5)}
@@ -319,7 +338,9 @@
     autoExpand: false, defaultAutoExpand: false, ovAutoExpand: null,
     faviconFail: new Set(),
     span: null,  // {a,b} = 辺に沿った範囲（0〜1 の割合）。null = 全幅（既定）
-    free: null   // {x,y,o,s?} = 浮き配置（帯の中心と向き、任意で長さも 0〜1 割合）。null = 辺に吸着
+    free: null,  // {x,y,o,s?} = 浮き配置（帯の中心と向き、任意で長さも 0〜1 割合）。null = 辺に吸着
+    lang: null,  // null = ブラウザの言語に従う。切替時はセッション全体で共有
+    msgs: null   // lang 用の実行時カタログ（background から rail-init / broadcast で届く）
   };
 
   const host = document.createElement('div');
@@ -341,21 +362,28 @@
   // 既定は自動展開 OFF（snapshot 到着時に setAutoExpand が正式に確定する）
   rail.classList.add('is-manual');
   const grip = el('div', 'grip');
-  grip.title = 'ドラッグで移動（辺へ吸着・中央へ引き出すと浮く）';
+  grip.dataset.i18nLabel = 'gripMove';
+  grip.dataset.i18nTitle = 'gripTitle';
+  grip.dataset.label = _t('gripMove');
+  grip.title = _t('gripTitle');
   const searchWrap = el('div', 'search-wrap');
   const searchInput = el('input', 'search');
   searchInput.type = 'search';
-  searchInput.placeholder = 'タブを検索';
-  searchInput.setAttribute('aria-label', 'タブを検索');
+  searchInput.dataset.i18nPlaceholder = 'searchTabs';
+  searchInput.dataset.i18nAriaLabel = 'searchTabs';
+  searchInput.placeholder = _t('searchTabs');
+  searchInput.setAttribute('aria-label', _t('searchTabs'));
   searchWrap.appendChild(searchInput);
   const list = el('div', 'list');
   const add = el('button', 'new-tab', '＋');
   add.type = 'button';
-  add.title = '新しいタブ';
+  add.dataset.i18nTitle = 'newTab';
+  add.title = _t('newTab');
   add.addEventListener('click', () => send({ type: 'rail-new' }));
   const gear = el('button', 'gear', '⚙︎');
   gear.type = 'button';
-  gear.title = 'レールの設定';
+  gear.dataset.i18nTitle = 'railSettings';
+  gear.title = _t('railSettings');
   gear.addEventListener('click', (event) => {
     event.stopPropagation();
     const b = gear.getBoundingClientRect();
@@ -364,7 +392,8 @@
   // 浮き帯だけに出る向き切替。グリップ（移動ボタン）の上に置く
   const ori = el('button', 'ori', '↻');
   ori.type = 'button';
-  ori.title = '向きを切替（縦↔横）';
+  ori.dataset.i18nTitle = 'oriTitle';
+  ori.title = _t('oriTitle');
   ori.addEventListener('click', (event) => {
     event.stopPropagation();
     if (!state.free) return;
@@ -377,16 +406,17 @@
   rail.append(add, list, searchWrap, ori, grip, gear);
   const notch = el('button', 'notch');
   notch.type = 'button';
-  notch.title = 'レールを開く';
-  notch.setAttribute('aria-label', 'レールの開閉');
+  notch.dataset.i18nAriaLabel = 'railToggle';
+  notch.title = _t('railOpen');
+  notch.setAttribute('aria-label', _t('railToggle'));
   rail.appendChild(notch);
   // ▶ span: 両端のリサイズツマミと中央の移動ツマミ
   const capA = el('div', 'cap cap-a');
-  capA.title = 'ドラッグで範囲のはじめを変更（ダブルクリックでリセット）';
+  capA.title = _t('capStart');
   const capB = el('div', 'cap cap-b');
-  capB.title = 'ドラッグで範囲のおわりを変更（ダブルクリックでリセット）';
+  capB.title = _t('capEnd');
   const capM = el('div', 'cap cap-m');
-  capM.title = 'ドラッグで範囲を移動（ダブルクリックでリセット）';
+  capM.title = _t('capMove');
   rail.append(capA, capB, capM);
   const menu = el('div', 'menu');
   menu.hidden = true;
@@ -401,6 +431,25 @@
   tip.hidden = true;
   shadow.append(rail, menu, ...zones, tip);
   document.documentElement.appendChild(host);
+
+  // data-i18n* 属性を持つ固定要素の文言を現在の言語で張り直す
+  function applyI18n() {
+    for (const n of shadow.querySelectorAll('[data-i18n]')) n.textContent = _t(n.dataset.i18n);
+    for (const n of shadow.querySelectorAll('[data-i18n-title]')) n.title = _t(n.dataset.i18nTitle);
+    for (const n of shadow.querySelectorAll('[data-i18n-placeholder]')) n.placeholder = _t(n.dataset.i18nPlaceholder);
+    for (const n of shadow.querySelectorAll('[data-i18n-aria-label]')) n.setAttribute('aria-label', _t(n.dataset.i18nAriaLabel));
+    for (const n of shadow.querySelectorAll('[data-i18n-label]')) n.dataset.label = _t(n.dataset.i18nLabel);
+  }
+  // 言語切替: 開いているメニューを閉じ、固定ラベル・状態依存タイトル・一覧を新言語で作り直す
+  function applyLang() {
+    if (!menu.hidden) closeMenu();
+    applyI18n();
+    notch.title = state.pointerNear ? _t('railClose') : _t('railOpen');
+    capM.title = state.free ? _t('capMoveFree') : _t('capMove');
+    capA.title = state.free ? _t('capLength') : _t('capStart');
+    capB.title = state.free ? _t('capLength') : _t('capEnd');
+    render();
+  }
 
   function send(msg) {
     try { chrome.runtime.sendMessage(msg); } catch (_) { /* ignore */ }
@@ -538,15 +587,9 @@
     rail.classList.toggle('is-free', !!f);
     rail.classList.toggle('free-h', !!f && f.o === 'h');
     rail.classList.remove('free-left', 'free-bottom');
-    capM.title = f
-      ? 'ドラッグで移動（端のゾーンへ落とすと吸着）'
-      : 'ドラッグで範囲を移動（ダブルクリックでリセット）';
-    capA.title = f
-      ? 'ドラッグで帯の長さを変更（ダブルクリックで自動に戻す）'
-      : 'ドラッグで範囲のはじめを変更（ダブルクリックでリセット）';
-    capB.title = f
-      ? 'ドラッグで帯の長さを変更（ダブルクリックで自動に戻す）'
-      : 'ドラッグで範囲のおわりを変更（ダブルクリックでリセット）';
+    capM.title = f ? _t('capMoveFree') : _t('capMove');
+    capA.title = f ? _t('capLength') : _t('capStart');
+    capB.title = f ? _t('capLength') : _t('capEnd');
     if (!f) { setPosition(state.position); return; }
     rail.classList.remove('pos-left', 'pos-top', 'pos-bottom');
     applyFree();
@@ -916,7 +959,7 @@
     event.stopPropagation();
     if (state.pointerNear) { armed = false; setNear(false); }
     else { armed = true; setNear(true); }
-    notch.title = state.pointerNear ? 'レールを閉じる' : 'レールを開く';
+    notch.title = state.pointerNear ? _t('railClose') : _t('railOpen');
   });
   document.documentElement.addEventListener('mouseleave', () => {
     clearTimeout(dwellTimer);
@@ -940,27 +983,27 @@
       b.addEventListener('click', () => { closeMenu(); fn(); });
       menu.appendChild(b);
     };
-    item(tab.pinned ? '固定を解除' : 'タブを固定',
+    item(tab.pinned ? _t('unpinTab') : _t('pinTab'),
       () => send({ type: 'rail-pin', tabId: tab.id, pinned: !tab.pinned }));
-    item(tab.muted ? 'ミュート解除' : 'タブをミュート',
+    item(tab.muted ? _t('unmuteTab') : _t('muteTab'),
       () => send({ type: 'rail-mute', tabId: tab.id, muted: !tab.muted }));
-    item('タブを複製', () => send({ type: 'rail-duplicate', tabId: tab.id }));
+    item(_t('duplicateTab'), () => send({ type: 'rail-duplicate', tabId: tab.id }));
     if (!tab.pinned) {
       if (tab.groupId !== NONE) {
-        item('グループから外す', () => send({ type: 'rail-ungroup', tabId: tab.id }));
+        item(_t('removeFromGroup'), () => send({ type: 'rail-ungroup', tabId: tab.id }));
       }
-      item('新しいグループを作る', () => send({ type: 'rail-group-new', tabId: tab.id }));
+      item(_t('newGroup'), () => send({ type: 'rail-group-new', tabId: tab.id }));
       const others = Array.from(state.groups.values()).filter(g => g.id !== tab.groupId);
       if (others.length) {
         menu.appendChild(el('div', 'menu-sep'));
         for (const g of others) {
-          item(`「${g.title || '名前なし'}」に移動`,
+          item(_t('moveToGroup', g.title || _t('unnamedShort')),
             () => send({ type: 'rail-group', tabId: tab.id, groupId: g.id }));
         }
       }
     }
     menu.appendChild(el('div', 'menu-sep'));
-    item('タブを閉じる', () => send({ type: 'rail-close', tabId: tab.id }), true);
+    item(_t('closeTab'), () => send({ type: 'rail-close', tabId: tab.id }), true);
     menu.hidden = false;
     syncOpen();
     placeMenu(anchor);
@@ -1002,20 +1045,20 @@
       b.addEventListener('click', () => { fn(); closeMenu(); });
       menu.appendChild(b);
     };
-    for (const [label, mode] of [
-      ['半透明のアイコン列（既定）', 'translucent'],
-      ['細い帯（20px）', 'slim'],
-      ['近接まで隠す', 'hidden']
+    for (const [key, mode] of [
+      ['modeTranslucent', 'translucent'],
+      ['modeSlim', 'slim'],
+      ['modeHidden', 'hidden']
     ]) {
-      item(label, mode === state.mode, () => {
+      item(_t(key), mode === state.mode, () => {
         state.modeTouched = true;
         setMode(mode);
         sendPref();
       });
     }
     menu.appendChild(el('div', 'menu-sep'));
-    for (const [label, pos] of [['右（既定）', 'right'], ['左', 'left'], ['上', 'top'], ['下', 'bottom']]) {
-      item(`位置: ${label}`, !state.free && pos === state.position, () => {
+    for (const [key, pos] of [['posRight', 'right'], ['posLeft', 'left'], ['posTop', 'top'], ['posBottom', 'bottom']]) {
+      item(_t('positionLabel', _t(key)), !state.free && pos === state.position, () => {
         setFree(null);
         setPosition(pos);
         sendPref();
@@ -1023,7 +1066,7 @@
     }
     // ▶ free: 辺から外して「好きなところに配置」できる状態にする。
     // 今いる場所のまま浮き出すので、あとは帯の ⇕ ツマミか展開中のグリップをドラッグして置く
-    item('好きなところに配置', !!state.free, () => {
+    item(_t('placeAnywhere'), !!state.free, () => {
       const r = rail.getBoundingClientRect();
       setFree({
         x: (r.left + r.width / 2) / window.innerWidth,
@@ -1033,22 +1076,29 @@
       sendPref();
     });
     menu.appendChild(el('div', 'menu-sep'));
-    item('自動で展開する（左右）', state.autoExpand, () => {
+    item(_t('autoExpandOn'), state.autoExpand, () => {
       setAutoExpand(true);
       sendPref();
     });
-    item('自動で展開しない（既定）', !state.autoExpand, () => {
+    item(_t('autoExpandOff'), !state.autoExpand, () => {
       setAutoExpand(false);
       sendPref();
     });
     menu.appendChild(el('div', 'menu-sep'));
-    item('レールを開く', false, () => { armed = true; setNear(true); });
-    // ▶ span: 範囲を変えているときだけリセット項目を出す
-    if (state.span) {
-      item('範囲をリセット', false, resetSpan);
+    // ▶ lang: 拡張内だけの言語切替（既定はブラウザの言語。セッション全体で共有・再起動で戻る）
+    for (const [key, code] of [['langAuto', null], ['langJa', 'ja'], ['langEn', 'en']]) {
+      item(_t('languageLabel', _t(key)), state.lang === code, () => {
+        send({ type: 'rail-pref', lang: code });
+      });
     }
     menu.appendChild(el('div', 'menu-sep'));
-    menu.appendChild(el('div', 'menu-note', '表示モードはこのタブだけ。位置・範囲・浮き配置・自動展開は全タブに共有（いずれも再起動で消える）。浮き配置は帯の ⇕ ツマミか展開中のグリップをドラッグして好きな所へ動かせる。既定・サイト別は rail-config.js'));
+    item(_t('railOpen'), false, () => { armed = true; setNear(true); });
+    // ▶ span: 範囲を変えているときだけリセット項目を出す
+    if (state.span) {
+      item(_t('resetRange'), false, resetSpan);
+    }
+    menu.appendChild(el('div', 'menu-sep'));
+    menu.appendChild(el('div', 'menu-note', _t('railMenuNote')));
     menu.hidden = false;
     syncOpen();
     placeMenu(anchor);
@@ -1057,7 +1107,7 @@
 
   function row(tab) {
     const r = el('div', 'row' + (tab.active ? ' is-active' : ''));
-    r.title = tab.title || '名称なし';
+    r.title = tab.title || _t('untitledTab');
     r.dataset.tabId = String(tab.id);
     r.draggable = true;
     const main = el('button', 'main');
@@ -1083,14 +1133,14 @@
       dot.style.background = COLORS[g.color] || COLORS.grey;
       main.appendChild(dot);
     }
-    main.appendChild(el('span', 'title', tab.title || (tab.url ? '読み込み中…' : '新しいタブ')));
+    main.appendChild(el('span', 'title', tab.title || (tab.url ? _t('loading') : _t('newTab'))));
     main.addEventListener('click', () => send({ type: 'rail-activate', tabId: tab.id }));
     r.appendChild(main);
     if (tab.pinned) r.appendChild(el('span', 'ind', '●'));
     if (tab.audible || tab.muted) r.appendChild(el('span', 'ind', tab.muted ? '♪̸' : '♪'));
     const more = el('button', 'more', '⋯');
     more.type = 'button';
-    more.title = '操作メニュー';
+    more.title = _t('actionsMenu');
     more.addEventListener('click', (event) => {
       event.stopPropagation();
       const b = more.getBoundingClientRect();
@@ -1098,7 +1148,7 @@
     });
     const close = el('button', 'close', '×');
     close.type = 'button';
-    close.title = 'タブを閉じる';
+    close.title = _t('closeTab');
     close.addEventListener('click', (event) => {
       event.stopPropagation();
       send({ type: 'rail-close', tabId: tab.id });
@@ -1168,7 +1218,7 @@
     const shown = state.tabs.filter(matches);
     if (!shown.length) {
       frag.appendChild(el('div', 'empty',
-        state.filter ? '一致するタブがありません。' : 'タブがありません。'));
+        state.filter ? _t('noMatchingTabs') : _t('noTabs')));
     } else {
       const pinned = shown.filter(t => t.pinned);
       const normal = shown.filter(t => !t.pinned);
@@ -1181,7 +1231,7 @@
     // 対象が閉じられて無くなったときだけ畳む
     if (Number.isInteger(state.tipTabId)) {
       const t = state.tabs.find(t2 => t2.id === state.tipTabId);
-      if (t) tip.textContent = t.title || '名称なし';
+      if (t) tip.textContent = t.title || _t('untitledTab');
       else hideTip();
     }
   }
@@ -1224,6 +1274,11 @@
     // 浮き配置もセッション全体の既定として載る（サイト別の位置固定があるページでは無視）
     const fr = validFree(data.free);
     if (fr !== undefined && state.ovPosition === null) state.free = fr;
+    // 言語もセッション全体の既定として載る（カタログなしのコードは無効値としてブラウザ言語へ戻す）
+    if ('lang' in data) {
+      state.lang = (data.lang && data.msgs && typeof data.msgs === 'object') ? data.lang : null;
+      state.msgs = state.lang ? data.msgs : null;
+    }
     // このタブで以前切り替えたモード（画面遷移をまたいで保持・background のメモリのみ。
     // 位置はタブ単位ではなくセッション全体の既定として snapshot の position に載る）
     if (data.tabPref && typeof data.tabPref === 'object') {
@@ -1233,7 +1288,7 @@
     setPosition(state.defaultPosition);
     setAutoExpand(state.defaultAutoExpand);
     if (state.free) setFree(state.free); // 浮き配置なら pos-* を外して中心座標へ
-    render();
+    applyLang(); // render を内包。注入直後にブラウザ言語で作った固定ラベルも言語設定へ合わせ直す
   }
 
   searchInput.addEventListener('input', () => {
@@ -1300,6 +1355,12 @@
     if (msg && msg.type === 'rail-pref-free') {
       const fr = validFree(msg.free);
       if (fr !== undefined && state.ovPosition === null) setFree(fr);
+    }
+    // 言語切替もセッション全体で共有する（カタログはメッセージに同梱）
+    if (msg && msg.type === 'rail-pref-lang') {
+      state.lang = (msg.lang && msg.msgs && typeof msg.msgs === 'object') ? msg.lang : null;
+      state.msgs = state.lang ? msg.msgs : null;
+      applyLang();
     }
   });
   chrome.runtime.sendMessage({ type: 'rail-init' }, (resp) => {

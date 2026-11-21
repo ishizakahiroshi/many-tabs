@@ -6,6 +6,8 @@
   <meta name="color-scheme" content="dark light">
   <title>Many Tabs</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="i18n/ja.js" defer></script>
+  <script src="i18n/en.js" defer></script>
   <script src="sidepanel.js" defer></script>
 </head>
 <body>
@@ -19,29 +21,30 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="refreshButton" class="icon-button" type="button" title="タブ一覧を更新" aria-label="タブ一覧を更新">⟳</button>
-        <button id="newTabButton" class="icon-button primary" type="button" title="新しいタブ" aria-label="新しいタブ">＋</button>
+        <button id="langButton" class="icon-button" type="button" title="言語" aria-label="言語" data-i18n-title="chooseLanguage" data-i18n-aria-label="chooseLanguage">🌐</button>
+        <button id="refreshButton" class="icon-button" type="button" title="タブ一覧を更新" aria-label="タブ一覧を更新" data-i18n-title="refreshTabs" data-i18n-aria-label="refreshTabs">⟳</button>
+        <button id="newTabButton" class="icon-button primary" type="button" title="新しいタブ" aria-label="新しいタブ" data-i18n-title="newTab" data-i18n-aria-label="newTab">＋</button>
       </div>
     </header>
 
     <div class="search-wrap">
       <label class="search" for="tabSearch">
         <span class="search-icon" aria-hidden="true">⌕</span>
-        <input id="tabSearch" type="search" placeholder="タブを検索  /" autocomplete="off" spellcheck="false">
+        <input id="tabSearch" type="search" placeholder="タブを検索  /" data-i18n-placeholder="searchTabsSlash" autocomplete="off" spellcheck="false">
         <span class="key-hint" aria-hidden="true">/</span>
       </label>
       <div class="summary">
-        <span id="tabCount">読み込み中…</span>
-        <span class="summary-right">このウィンドウ</span>
+        <span id="tabCount" data-i18n="loading">読み込み中…</span>
+        <span class="summary-right" data-i18n="thisWindow">このウィンドウ</span>
       </div>
     </div>
 
-    <main id="tabList" aria-label="タブ一覧" class="tab-list">
-      <div class="empty-state">読み込み中…</div>
+    <main id="tabList" aria-label="タブ一覧" class="tab-list" data-i18n-aria-label="tabListLabel">
+      <div class="empty-state" data-i18n="loading">読み込み中…</div>
     </main>
 
     <footer class="footer">
-      <span><span class="status-dot" aria-hidden="true"></span>外部通信なし</span>
+      <span><span class="status-dot" aria-hidden="true"></span><span data-i18n="noExternalComm">外部通信なし</span></span>
       <span id="appVersion"></span>
     </footer>
   </div>

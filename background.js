@@ -17,6 +17,12 @@ try {
   }
 } catch (_) { /* rail-config.js が無い環境では既定値のまま */ }
 
+// 言語切替用の実行時カタログ（i18n/<code>.js・_locales のミラー。言語追加は両方を対で足す）。
+// 無くてもブラウザの言語（chrome.i18n）だけで動く
+try {
+  importScripts('i18n/ja.js', 'i18n/en.js');
+} catch (_) { /* カタログが無い環境ではブラウザ言語のまま */ }
+
 // 右側か左側かはユーザーのChrome設定に従う。
 // データ送信、アクセスログ、外部サービスとの通信は一切実装していない。
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
@@ -43,6 +49,30 @@ let SESSION_AUTO_EXPAND = null;
 let SESSION_SPAN = null;
 // 浮き配置（帯の中心 {x,y}・null=辺に吸着）も同じくセッション全体で共有する
 let SESSION_FREE = null;
+// 言語切替も同じくセッション全体で共有する（null = ブラウザの言語に従う・永続化しない）
+let SESSION_LANG = null;
+
+// messages.json と同じ形のカタログから文言を引く（$name$ プレースホルダも同じ規則で置換）
+function catalogFor(lang) {
+  return (typeof MANY_TABS_MSGS === 'object' && MANY_TABS_MSGS && lang)
+    ? (MANY_TABS_MSGS[lang] || null) : null;
+}
+function catalogText(cat, key, subs) {
+  const e = cat && cat[key];
+  if (!e || typeof e.message !== 'string') return null;
+  let s = e.message;
+  if (e.placeholders) for (const name of Object.keys(e.placeholders)) {
+    const c = /^\$(\d+)$/.exec(String(e.placeholders[name].content || ''));
+    const v = c ? String(subs[Number(c[1]) - 1] ?? '') : String(e.placeholders[name].content ?? '');
+    s = s.split('$' + name + '$').join(v);
+  }
+  return s;
+}
+function _t(key, ...subs) {
+  const s = catalogText(catalogFor(SESSION_LANG), key, subs);
+  if (s !== null) return s;
+  return chrome.i18n.getMessage(key, subs.map(String)) || key;
+}
 
 // {a,b}（0<=a<b<=1）か null 以外（壊れた値）は undefined を返す
 function validSpan(v) {
@@ -103,6 +133,8 @@ async function snapshot(windowId) {
     autoExpand: SESSION_AUTO_EXPAND ?? AUTO_EXPAND,
     span: SESSION_SPAN,
     free: SESSION_FREE,
+    lang: SESSION_LANG,
+    msgs: catalogFor(SESSION_LANG),
     overrides: OVERRIDES,
     tabs: tabs.sort((a, b) => a.index - b.index).map(t => ({
       id: t.id, index: t.index, title: t.title || '', url: t.url || '', active: !!t.active,
@@ -140,6 +172,18 @@ chrome.tabGroups.onRemoved.addListener(g => schedulePush(g.windowId));
 chrome.tabGroups.onMoved.addListener(g => schedulePush(g.windowId));
 
 chrome.runtime.onMessage.addListener((msg, sender, respond) => {
+  // 言語の切替・問合せはサイドパネル（sender.tab が無い）からも来るので、win 判定より先に扱う
+  if (msg && msg.type === 'lang-get') {
+    respond({ lang: SESSION_LANG, msgs: catalogFor(SESSION_LANG) });
+    return true;
+  }
+  if (msg && msg.type === 'rail-pref' && 'lang' in msg) {
+    const lang = (typeof msg.lang === 'string' && catalogFor(msg.lang)) ? msg.lang : null;
+    if ((msg.lang === null || lang !== null) && lang !== SESSION_LANG) {
+      SESSION_LANG = lang;
+      broadcast({ type: 'rail-pref-lang', lang, msgs: catalogFor(lang) });
+    }
+  }
   const win = sender && sender.tab && sender.tab.windowId;
   if (!Number.isInteger(win) || !msg || typeof msg.type !== 'string') return false;
   if (msg.type === 'rail-init') {
@@ -204,7 +248,8 @@ async function action(msg, win) {
       if (group.windowId === win) await chrome.tabs.group({ tabIds: [msg.tabId], groupId: msg.groupId });
     } else if (msg.type === 'rail-group-new') {
       const groupId = await chrome.tabs.group({ tabIds: [msg.tabId], createProperties: { windowId: win } });
-      await chrome.tabGroups.update(groupId, { title: '新しいグループ', color: 'blue' });
+      const gt = _t('newGroupTitle');
+      await chrome.tabGroups.update(groupId, { title: gt === 'newGroupTitle' ? 'New group' : gt, color: 'blue' });
     }
   } catch (error) {
     console.error('Many Tabs rail:', error);
