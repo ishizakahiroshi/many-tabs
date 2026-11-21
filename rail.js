@@ -326,7 +326,19 @@
     }
     return best;
   }
+  // グリップ上のクリックでは位置を変えないよう、6px 以上動いたときだけ
+  // ドックドラッグ（ゾーン表示・吸着判定）を開始する
+  const DOCK_START_PX = 6;
+  let dockStart = null;
   function dockMove(event) {
+    if (dockStart) {
+      const dx = event.clientX - dockStart.x;
+      const dy = event.clientY - dockStart.y;
+      if (dx * dx + dy * dy < DOCK_START_PX * DOCK_START_PX) return;
+      dockStart = null;
+      rail.classList.add('is-dock-dragging');
+      for (const z of zones) z.hidden = false;
+    }
     dockTarget = dockZoneAt(event);
     for (const z of zones) {
       z.classList.toggle('z-on', z.classList.contains(`z-${dockTarget}`));
@@ -335,6 +347,7 @@
   function dockEnd(event) {
     dockDragging = false;
     dockMove(event);
+    dockStart = null;
     rail.classList.remove('is-dock-dragging');
     for (const z of zones) { z.hidden = true; z.classList.remove('z-on'); }
     document.removeEventListener('pointermove', dockMove, true);
@@ -351,8 +364,7 @@
     event.preventDefault();
     dockDragging = true;
     dockTarget = null;
-    rail.classList.add('is-dock-dragging');
-    for (const z of zones) z.hidden = false;
+    dockStart = { x: event.clientX, y: event.clientY };
     document.addEventListener('pointermove', dockMove, true);
     document.addEventListener('pointerup', dockEnd, true);
     document.addEventListener('pointercancel', dockEnd, true);
@@ -365,14 +377,14 @@
       if (dist > openExtent()) scheduleClose(); else clearTimeout(closeTimer);
       return;
     }
-    if (dist <= EDGE_ARM_PX) {
+    // 上下位置は端タッチも滞留も開かない（帯の下のページ UI を狙う移動・フリックの
+    // オーバーシュートと衝突するため）。開閉は中央ツマミのクリックのみ。
+    if (!horizontal() && dist <= EDGE_ARM_PX) {
       armed = true;
       clearTimeout(dwellTimer);
       setNear(true);
       return;
     }
-    // 上下位置は滞留で開かない（帯の下のページ UI を狙うホバーと衝突するため）。
-    // 上下は端タッチか中央ツマミのクリックでのみ開く。
     if (!horizontal() && dist <= bandPx() && !armed) {
       clearTimeout(dwellTimer);
       dwellTimer = setTimeout(() => { armed = true; setNear(true); }, DWELL_MS);
