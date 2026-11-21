@@ -63,7 +63,7 @@
       width:36px;height:auto;border-top:0;border-left:1px solid rgba(49,59,77,.55)}
     .rail.pos-top.is-open .search-wrap,.rail.pos-bottom.is-open .search-wrap{
       display:flex;align-items:center;width:170px;flex:none;padding:0 6px;
-      border-bottom:0;border-right:1px solid #313b4d}
+      border-bottom:0;border-left:1px solid #313b4d}
     /* 上下の畳み帯はクリックスルーのまま、中央のツマミだけを押せる開閉ボタンにする。
        帯の下にあるページ側のボタンを狙うホバーではレールが出ない */
     .notch{position:absolute;display:none;width:56px;height:11px;left:50%;transform:translateX(-50%);
@@ -84,7 +84,7 @@
     .zone.z-left{top:0;left:0;bottom:0;width:14px}
     .zone.z-top{top:0;left:0;right:0;height:14px}
     .zone.z-bottom{bottom:0;left:0;right:0;height:14px}
-    .search-wrap{display:none;padding:5px 6px;border-bottom:1px solid #313b4d}
+    .search-wrap{display:none;padding:5px 6px;border-top:1px solid #313b4d}
     .rail.is-open .search-wrap{display:block}
     .search{width:100%;box-sizing:border-box;height:24px;padding:0 8px;
       border:1px solid #313b4d;border-radius:6px;background:#0f1420;color:inherit;
@@ -146,10 +146,10 @@
       .rail.pos-top .new-tab,.rail.pos-bottom .new-tab{
         border-left-color:rgba(209,217,229,.6)}
       .rail.pos-top.is-open .search-wrap,.rail.pos-bottom.is-open .search-wrap{
-        border-right-color:#d1d9e5}
+        border-left-color:#d1d9e5}
       .rail.pos-top .notch,.rail.pos-bottom .notch{background-color:rgba(246,248,252,.8)}
       .notch:hover{background-color:rgba(226,232,242,.95)}
-      .search-wrap{border-bottom-color:#d1d9e5}
+      .search-wrap{border-top-color:#d1d9e5}
       .search{background:#fff;border-color:#d1d9e5;color:#202939}
       .search:focus{border-color:#3068c8}
       .search::placeholder{color:#6b778b}
@@ -209,7 +209,9 @@
   add.type = 'button';
   add.title = '新しいタブ';
   add.addEventListener('click', () => send({ type: 'rail-new' }));
-  rail.append(grip, searchWrap, list, add);
+  // 展開時に行がずれないよう、検索・グリップはリストの後ろに置く
+  // （リストの上に挿入すると畳み時に狙ったアイコンの行が展開でずれて誤クリックになる）
+  rail.append(list, searchWrap, grip, add);
   const notch = el('button', 'notch');
   notch.type = 'button';
   notch.title = 'レールの開閉';
