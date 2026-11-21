@@ -52,6 +52,17 @@
       right:-1px;left:auto;top:4px;bottom:4px;width:2px;height:auto}
     .rail.pos-top:not(.is-open) .new-tab,.rail.pos-bottom:not(.is-open) .new-tab{
       width:36px;height:44px;border-top:0;border-left:1px solid rgba(49,59,77,.55)}
+    .grip{display:none;height:14px;cursor:grab;flex:none;
+      background-image:radial-gradient(circle,rgba(137,149,169,.9) 1.2px,transparent 1.4px);
+      background-size:9px 6px;background-position:center;background-repeat:repeat}
+    .rail.is-open .grip{display:block}
+    .rail.is-dock-dragging .grip{cursor:grabbing}
+    .zone{position:fixed;background:rgba(70,130,240,.18);pointer-events:none}
+    .zone.z-on{background:rgba(70,130,240,.5)}
+    .zone.z-right{top:0;right:0;bottom:0;width:14px}
+    .zone.z-left{top:0;left:0;bottom:0;width:14px}
+    .zone.z-top{top:0;left:0;right:0;height:14px}
+    .zone.z-bottom{bottom:0;left:0;right:0;height:14px}
     .search-wrap{display:none;padding:5px 6px;border-bottom:1px solid #313b4d}
     .rail.is-open .search-wrap{display:block}
     .search{width:100%;box-sizing:border-box;height:24px;padding:0 8px;
@@ -160,6 +171,8 @@
   }
 
   const rail = el('div', 'rail');
+  const grip = el('div', 'grip');
+  grip.title = 'ドラッグでレールの位置を変更';
   const searchWrap = el('div', 'search-wrap');
   const searchInput = el('input', 'search');
   searchInput.type = 'search';
@@ -171,11 +184,16 @@
   add.type = 'button';
   add.title = '新しいタブ';
   add.addEventListener('click', () => send({ type: 'rail-new' }));
-  rail.append(searchWrap, list, add);
+  rail.append(grip, searchWrap, list, add);
   const menu = el('div', 'menu');
   menu.hidden = true;
   menu.setAttribute('role', 'menu');
-  shadow.append(rail, menu);
+  const zones = ['left', 'right', 'top', 'bottom'].map(p => {
+    const z = el('div', `zone z-${p}`);
+    z.hidden = true;
+    return z;
+  });
+  shadow.append(rail, menu, ...zones);
   document.documentElement.appendChild(host);
 
   function send(msg) {
@@ -256,7 +274,60 @@
   function bandPx() {
     return state.mode === 'slim' ? 20 : 44;
   }
+
+  // グリップを掴んで画面の辺へドラッグすると、レールの位置をその辺へ切り替える。
+  // 畳んだ帯はクリックスルーなので掴めず、展開中のグリップから始める。
+  const DOCK_ZONE_PX = 80;
+  let dockDragging = false;
+  let dockTarget = null;
+  function dockZoneAt(event) {
+    const dist = {
+      left: event.clientX,
+      right: window.innerWidth - event.clientX,
+      top: event.clientY,
+      bottom: window.innerHeight - event.clientY
+    };
+    let best = null;
+    let bestD = DOCK_ZONE_PX;
+    for (const pos of ['left', 'right', 'top', 'bottom']) {
+      if (dist[pos] < bestD) { bestD = dist[pos]; best = pos; }
+    }
+    return best;
+  }
+  function dockMove(event) {
+    dockTarget = dockZoneAt(event);
+    for (const z of zones) {
+      z.classList.toggle('z-on', z.classList.contains(`z-${dockTarget}`));
+    }
+  }
+  function dockEnd(event) {
+    dockDragging = false;
+    dockMove(event);
+    rail.classList.remove('is-dock-dragging');
+    for (const z of zones) { z.hidden = true; z.classList.remove('z-on'); }
+    document.removeEventListener('pointermove', dockMove, true);
+    document.removeEventListener('pointerup', dockEnd, true);
+    document.removeEventListener('pointercancel', dockEnd, true);
+    if (dockTarget) {
+      state.positionTouched = true;
+      setPosition(dockTarget);
+      dockTarget = null;
+    }
+  }
+  grip.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    dockDragging = true;
+    dockTarget = null;
+    rail.classList.add('is-dock-dragging');
+    for (const z of zones) z.hidden = false;
+    document.addEventListener('pointermove', dockMove, true);
+    document.addEventListener('pointerup', dockEnd, true);
+    document.addEventListener('pointercancel', dockEnd, true);
+  });
+
   document.addEventListener('mousemove', (event) => {
+    if (dockDragging) { clearTimeout(closeTimer); return; }
     const dist = edgeDist(event);
     if (state.pointerNear) {
       if (dist > openExtent()) scheduleClose(); else clearTimeout(closeTimer);
