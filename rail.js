@@ -71,8 +71,10 @@
     .rail.pos-top.is-open .search-wrap,.rail.pos-bottom.is-open .search-wrap{
       display:flex;align-items:center;width:170px;flex:none;padding:0 6px;
       border-bottom:0;border-left:1px solid #313b4d}
-    /* 上下の畳み帯はクリックスルーのまま、中央のツマミだけを押せる開閉ボタンにする。
-       帯の下にあるページ側のボタンを狙うホバーではレールが出ない */
+    /* 上下の畳み帯ではアイコンのセルだけがクリックを受ける（=そのままタブ切替）。
+       隙間・余白はページへ通るので、下のページ要素は隙間で反応する */
+    .rail.pos-top:not(.is-open) .main,.rail.pos-bottom:not(.is-open) .main{pointer-events:auto}
+    /* 中央のツマミは帯の開閉ボタン（帯を開くとアイコン行はそのままになる） */
     .notch{position:absolute;display:none;width:56px;height:11px;left:50%;transform:translateX(-50%);
       border:0;padding:0;cursor:pointer;pointer-events:auto;
       background-image:radial-gradient(circle,rgba(232,237,246,.8) 1.2px,transparent 1.4px);
