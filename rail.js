@@ -20,10 +20,10 @@
       display:flex;flex-direction:column;background:rgba(14,18,27,.96);
       border-left:1px solid #313b4d;color:#e8edf6;
       font:13px system-ui,-apple-system,"Segoe UI",sans-serif;
-      transition:width .15s ease;pointer-events:auto}
-    .rail:hover,.rail.is-open{width:236px}
+      transition:width .15s ease;pointer-events:none}
+    .rail.is-open{width:236px;pointer-events:auto}
     .search-wrap{display:none;padding:5px 6px;border-bottom:1px solid #313b4d}
-    .rail:hover .search-wrap,.rail.is-open .search-wrap{display:block}
+    .rail.is-open .search-wrap{display:block}
     .search{width:100%;box-sizing:border-box;height:24px;padding:0 8px;
       border:1px solid #313b4d;border-radius:6px;background:#0f1420;color:inherit;
       font:inherit;font-size:12px;outline:none}
@@ -51,7 +51,7 @@
     .ind{flex:0 0 auto;color:#8995a9;font-size:11px;padding:0 2px}
     .more,.close{flex:0 0 auto;width:20px;height:24px;display:grid;place-items:center;border:0;
       background:none;color:#8995a9;font-size:14px;cursor:pointer;opacity:0;border-radius:5px}
-    .rail:hover .more,.rail:hover .close,.rail.is-open .more,.rail.is-open .close{opacity:1}
+    .rail.is-open .more,.rail.is-open .close{opacity:1}
     .more:hover,.close:hover{background:rgba(255,255,255,.12);color:#fff}
     .new-tab{flex:0 0 auto;height:30px;border:0;border-top:1px solid #313b4d;
       background:#171d29;color:#e8edf6;font-size:16px;cursor:pointer}
@@ -95,7 +95,7 @@
   `;
 
   const state = {
-    tabs: [], groups: new Map(), filter: '',
+    tabs: [], groups: new Map(), filter: '', pointerNear: false,
     draggedTabId: null, renderDeferred: false, menuTabId: null
   };
 
@@ -152,8 +152,55 @@
   // レールを展開したままにする（操作中に 44px へ畳まれると行き先を失うため）。
   function syncOpen() {
     rail.classList.toggle('is-open',
-      state.filter !== '' || !menu.hidden || Number.isInteger(state.draggedTabId));
+      state.pointerNear || state.filter !== '' || !menu.hidden || Number.isInteger(state.draggedTabId));
   }
+
+  // 畳んだレールは pointer-events:none でページへクリックを通す
+  // （右端にあるページ側のボタンやスクロールバーを塞がないため）。
+  // 展開は JS で行う。:hover では検出できないので、document の mousemove で
+  // 「画面右端へのタッチ」か「44px 帯での滞留」をトリガーにする。
+  // 帯の内側（8〜44px）への直接の侵入では畳んだままにし、
+  // ページの右端ボタンを狙ったホバーではレールが出ないようにする。
+  const EDGE_ARM_PX = 8;
+  const BAND_PX = 44;
+  const OPEN_PX = 236;
+  const DWELL_MS = 400;
+  const CLOSE_DELAY_MS = 250;
+  let dwellTimer = 0;
+  let closeTimer = 0;
+  let armed = false;
+  function setNear(near) {
+    if (state.pointerNear === near) return;
+    state.pointerNear = near;
+    syncOpen();
+  }
+  function scheduleClose() {
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => { armed = false; setNear(false); }, CLOSE_DELAY_MS);
+  }
+  document.addEventListener('mousemove', (event) => {
+    const dRight = window.innerWidth - event.clientX;
+    if (state.pointerNear) {
+      if (dRight > OPEN_PX) scheduleClose(); else clearTimeout(closeTimer);
+      return;
+    }
+    if (dRight <= EDGE_ARM_PX) {
+      armed = true;
+      clearTimeout(dwellTimer);
+      setNear(true);
+      return;
+    }
+    if (dRight <= BAND_PX && !armed) {
+      clearTimeout(dwellTimer);
+      dwellTimer = setTimeout(() => { armed = true; setNear(true); }, DWELL_MS);
+      return;
+    }
+    clearTimeout(dwellTimer);
+  }, { passive: true });
+  document.documentElement.addEventListener('mouseleave', () => {
+    clearTimeout(dwellTimer);
+    scheduleClose();
+  });
 
   function closeMenu() {
     if (menu.hidden) return;
@@ -338,6 +385,8 @@
   shadow.addEventListener('keydown', (event) => {
     if (event.key === '/' && event.target !== searchInput && !event.ctrlKey && !event.metaKey && !event.altKey) {
       event.preventDefault();
+      state.pointerNear = true;
+      syncOpen();
       searchInput.focus();
     }
     if (event.key === 'Escape' && !menu.hidden) closeMenu();
