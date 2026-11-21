@@ -91,6 +91,12 @@
     .zone.z-left{top:0;left:0;bottom:0;width:14px}
     .zone.z-top{top:0;left:0;right:0;height:14px}
     .zone.z-bottom{bottom:0;left:0;right:0;height:14px}
+    /* 上下の畳み帯でアイコンをホバーしたときのタイトルラベル（表示専用） */
+    .tip{position:fixed;max-width:280px;padding:4px 8px;background:#1b2331;
+      border:1px solid #313b4d;border-radius:6px;color:#e8edf6;
+      font:12px system-ui,-apple-system,"Segoe UI",sans-serif;
+      pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tip[hidden]{display:none}
     .search-wrap{display:none;padding:5px 6px;border-top:1px solid #313b4d}
     .rail.is-open .search-wrap{display:block}
     .search{width:100%;box-sizing:border-box;height:24px;padding:0 8px;
@@ -156,6 +162,7 @@
         border-left-color:#d1d9e5}
       .rail.pos-top .notch,.rail.pos-bottom .notch{background-color:rgba(246,248,252,.8)}
       .notch:hover{background-color:rgba(226,232,242,.95)}
+      .tip{background:#fff;border-color:#d1d9e5;color:#202939;box-shadow:0 4px 14px rgba(32,41,57,.18)}
       .search-wrap{border-top-color:#d1d9e5}
       .search{background:#fff;border-color:#d1d9e5;color:#202939}
       .search:focus{border-color:#3068c8}
@@ -232,7 +239,9 @@
     z.hidden = true;
     return z;
   });
-  shadow.append(rail, menu, ...zones);
+  const tip = el('div', 'tip');
+  tip.hidden = true;
+  shadow.append(rail, menu, ...zones, tip);
   document.documentElement.appendChild(host);
 
   function send(msg) {
@@ -301,9 +310,31 @@
     // 上下位置の展開は 40px の横帯なので閉域もそれに合わせる
     return horizontal() ? 40 : OPEN_PX;
   }
+  function rowAt(event) {
+    for (const r of list.children) {
+      const b = r.getBoundingClientRect();
+      if (horizontal()
+        ? event.clientX >= b.left && event.clientX <= b.right
+        : event.clientY >= b.top && event.clientY <= b.bottom) return r;
+    }
+    return null;
+  }
+  function setTip(r) {
+    if (!r || !r.title) { tip.hidden = true; return; }
+    tip.textContent = r.title;
+    tip.hidden = false;
+    const b = r.getBoundingClientRect();
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    tip.style.left = `${Math.max(4, Math.min(b.left + b.width / 2 - tw / 2, window.innerWidth - tw - 4))}px`;
+    tip.style.top = state.position === 'top'
+      ? `${bandPx() + 4}px`
+      : `${window.innerHeight - bandPx() - th - 4}px`;
+  }
   function setNear(near) {
     if (state.pointerNear === near) return;
     state.pointerNear = near;
+    tip.hidden = true;
     syncOpen();
   }
   function scheduleClose() {
@@ -386,6 +417,9 @@
       if (dist > openExtent()) scheduleClose(); else clearTimeout(closeTimer);
       return;
     }
+    // 上下の畳み帯はクリックスルーなので、行の当たり判定はカーソル座標から行う。
+    // アイコンの上に止まるとタイトルのラベルを帯の内側へ出す（表示のみ・クリックは通る）
+    if (horizontal()) setTip(dist <= bandPx() ? rowAt(event) : null);
     // 上下位置は端タッチも滞留も開かない（帯の下のページ UI を狙う移動・フリックの
     // オーバーシュートと衝突するため）。開閉は中央ツマミのクリックのみ。
     if (!horizontal() && dist <= EDGE_ARM_PX) {
@@ -620,6 +654,7 @@
       for (const t of normal) frag.appendChild(row(t));
     }
     list.replaceChildren(frag);
+    tip.hidden = true;
   }
   // ホスト名に一致する上書きを最長一致で返す（サブドメインは親ドメインの設定に従う）
   function hostOverride(overrides) {
