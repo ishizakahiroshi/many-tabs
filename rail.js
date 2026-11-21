@@ -193,8 +193,7 @@
     tabs: [], groups: new Map(), filter: '', pointerNear: false,
     draggedTabId: null, renderDeferred: false, menuTabId: null,
     mode: 'translucent', defaultMode: 'translucent', modeTouched: false,
-    position: 'right', defaultPosition: 'right', positionTouched: false,
-    ovPosition: null
+    position: 'right', defaultPosition: 'right', ovPosition: null
   };
 
   const host = document.createElement('div');
@@ -401,7 +400,6 @@
     document.removeEventListener('pointerup', dockEnd, true);
     document.removeEventListener('pointercancel', dockEnd, true);
     if (dockTarget) {
-      state.positionTouched = true;
       setPosition(dockTarget);
       sendPref();
       dockTarget = null;
@@ -535,7 +533,6 @@
     menu.appendChild(el('div', 'menu-sep'));
     for (const [label, pos] of [['右（既定）', 'right'], ['左', 'left'], ['上', 'top'], ['下', 'bottom']]) {
       item(`位置: ${label}`, pos === state.position, () => {
-        state.positionTouched = true;
         setPosition(pos);
         sendPref();
       });
@@ -699,7 +696,7 @@
       if (typeof data.tabPref.mode === 'string') state.defaultMode = data.tabPref.mode;
     }
     if (!state.modeTouched) setMode(state.defaultMode);
-    if (!state.positionTouched) setPosition(state.defaultPosition);
+    setPosition(state.defaultPosition);
     render();
   }
 
@@ -742,10 +739,10 @@
   });
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'rail-tabs' && Array.isArray(msg.tabs)) accept(msg);
-    // どこかのタブで位置が変えられたとき、自分のページで未変更かつ
-    // サイト別 overrides で位置を固定していなければ追従する
+    // どこかのタブで位置が変えられたら追従する（位置はセッション全体の既定。
+    // 例外はサイト別 overrides で位置を固定しているページのみ）
     if (msg && msg.type === 'rail-pref-position' && typeof msg.position === 'string') {
-      if (!state.positionTouched && !state.ovPosition) {
+      if (!state.ovPosition) {
         state.defaultPosition = msg.position;
         setPosition(state.defaultPosition);
       }
