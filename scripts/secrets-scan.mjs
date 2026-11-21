@@ -82,6 +82,7 @@ function isAllowedEmail(matched) {
 const ALLOWED_PUBLIC_NAMES = [
   'Nextcloud', // 公開 OSS 製品名
   'Portal',    // 一般英単語（社内ポータル台帳名の bare variant）
+  'panel',     // Chrome sidePanel API 由来の一般英単語
 ];
 
 const BINARY_EXTS = new Set([

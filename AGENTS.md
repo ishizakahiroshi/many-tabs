@@ -12,7 +12,7 @@
 ## Non-negotiables (full detail in CLAUDE.md)
 
 - 外部通信は一切行わない（`fetch` / `XMLHttpRequest` / `WebSocket` / `sendBeacon` / 外部 SDK・CDN を実装しない・CSP で `connect-src 'none'`）。通信系コードを足す変更は設計の前提を壊す
-- `host_permissions` / `content_scripts` / `<all_urls>` は追加しない。権限は manifest の最小セットを維持する
+- ページ本文を読み取らない・改変しない。rail.js（content scripts）は自前の Shadow DOM overlay のみ描画する。権限は manifest の宣言セットを維持する
 - 閲覧情報をストレージ・サーバーへ保存しない。`tabs` API で読んだ値は画面表示と検索にだけ使う
 - 公開対象ファイルに実在の人名・組織名・私有パスを書かない。テスト・例示の値は合成データのみ
 - ビルド・コミット禁止、secrets-scan 責務、plan/bugfix/pending md の作成ルール等の AI 作業共通ルールは、各利用者のグローバル AI 設定に従う（作者環境の例: `~/.claude/CLAUDE.md` および `~/.claude/guides/`）

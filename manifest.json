@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Right Tabs Local",
   "short_name": "Right Tabs",
-  "description": "右側のサイドパネルでタブを管理する、外部送信なしのローカル専用拡張機能。",
-  "version": "0.1.0",
+  "description": "右側に垂直タブを表示する、外部送信なしのローカル専用拡張機能。",
+  "version": "0.2.0",
   "minimum_chrome_version": "116",
   "permissions": [
     "sidePanel",
@@ -21,6 +21,20 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*", "file:///*"],
+      "js": ["rail.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["_favicon/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "background": {
     "service_worker": "background.js"
   },

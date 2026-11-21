@@ -11,12 +11,13 @@ fresh public clone でも有効な内容に保つこと。 -->
 
 ## プロジェクト概要
 
-Chrome 拡張機能（Manifest V3）。Chrome 標準のサイドパネル内に、外部通信を一切行わないローカル専用のタブ一覧を表示する。タブの切替・閉じる・新規・検索・固定・グループ操作・D&D 並べ替えをサイドパネルから行える。個人用の試作（v0.1.0）。公開可否は実機検証のあとに判断する（README「将来の一般公開について」参照）。
+Chrome 拡張機能（Manifest V3）。右側に外部通信を一切行わないローカル専用のタブ一覧を表示する。表示は 2 系統: Chrome 標準のサイドパネル（機能フル）と、各ページ右端に重ねる最小表示のレール（rail.js・content script）。サイドパネルからタブの切替・閉じる・新規・検索・固定・グループ操作・D&D 並べ替えを行える。個人用の試作（v0.2.0）。公開可否は実機検証のあとに判断する（README「将来の一般公開について」参照）。
 
 ## やらないこと（スコープ外）
 
 - 外部通信・解析・テレメトリ・外部 SDK/CDN の導入（設計の前提を壊す）
-- `host_permissions` / `content_scripts` / `<all_urls>` の追加、ページ本文へのアクセス
+- ページ本文の読み取り・改変・ページ由来データの保存（rail.js は自前の overlay を描くだけで、ページ DOM には触れない）
+- `host_permissions` の追加・content_scripts の rail.js 以外への拡大・all_frames の有効化
 - 閲覧情報の永続化（storage・localStorage・サーバー送信）
 - Chrome 標準の横タブ・垂直タブを非表示にする機能（Chrome API 上不可能）
 - Chrome ウェブストア公開（未定・公開前にはストア規約とプライバシー説明の整備が別途必要）
@@ -26,14 +27,15 @@ Chrome 拡張機能（Manifest V3）。Chrome 標準のサイドパネル内に�
 | 層 | 技術 |
 |---|---|
 | 本体 | バニラ JS / HTML / CSS（依存パッケージなし・ビルド工程なし） |
-| 基盤 | Chrome Extension Manifest V3（sidePanel / tabs / tabGroups / favicon / service worker） |
+| 基盤 | Chrome Extension Manifest V3（sidePanel / tabs / tabGroups / favicon / content_scripts / service worker） |
 | 検査 | `tests/security-check.py`（禁止 API・宣言の静的チェック）、doxguard（pre-commit） |
 
 ## ディレクトリ構成
 
 ```
-manifest.json        MV3 マニフェスト（permissions: sidePanel / tabs / tabGroups / favicon）
-background.js        service worker（アイコン押下でサイドパネルを開く）
+manifest.json        MV3 マニフェスト（permissions: sidePanel / tabs / tabGroups / favicon + content_scripts 宣言）
+background.js        service worker（アイコン押下でサイドパネル・レールへの配信と操作中継）
+rail.js              右端レール（content script・closed Shadow DOM overlay）
 sidepanel.html / sidepanel.js / styles.css   サイドパネルの画面・タブ操作
 icons/               拡張機能アイコン（16/32/48/128）
 tests/               security-check.py（静的チェック）
