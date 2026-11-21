@@ -24,6 +24,11 @@
       pointer-events:none}
     .rail.is-open{width:236px;pointer-events:auto;
       background:rgba(14,18,27,.96);border-left-color:#313b4d}
+    .rail.is-hidden:not(.is-open){visibility:hidden}
+    .rail.is-slim:not(.is-open){width:20px}
+    .rail.is-slim:not(.is-open) .main{padding:0 2px}
+    .rail.is-slim:not(.is-open) .ind,.rail.is-slim:not(.is-open) .gdot{display:none}
+    .rail.is-slim:not(.is-open) .sep{margin:5px 4px}
     .search-wrap{display:none;padding:5px 6px;border-bottom:1px solid #313b4d}
     .rail.is-open .search-wrap{display:block}
     .search{width:100%;box-sizing:border-box;height:24px;padding:0 8px;
@@ -73,6 +78,7 @@
     .menu-item.danger{color:#f07474}
     .menu-item.danger:hover,.menu-item.danger:focus-visible{background:rgba(240,116,116,.14)}
     .menu-sep{height:1px;background:#313b4d;margin:4px 6px}
+    .menu-note{padding:6px 10px;color:#8995a9;font-size:11px;line-height:1.5}
     @media (prefers-color-scheme: light){
       .rail{background:rgba(246,248,252,.55);border-left-color:rgba(209,217,229,.6);color:#202939}
       .rail.is-open{background:rgba(246,248,252,.97);border-left-color:#d1d9e5}
@@ -96,12 +102,14 @@
       .menu-item.danger{color:#c43d3d}
       .menu-item.danger:hover,.menu-item.danger:focus-visible{background:rgba(196,61,61,.1)}
       .menu-sep{background:#d1d9e5}
+      .menu-note{color:#6b778b}
     }
   `;
 
   const state = {
     tabs: [], groups: new Map(), filter: '', pointerNear: false,
-    draggedTabId: null, renderDeferred: false, menuTabId: null
+    draggedTabId: null, renderDeferred: false, menuTabId: null,
+    mode: 'translucent', defaultMode: 'translucent', modeTouched: false
   };
 
   const host = document.createElement('div');
@@ -167,13 +175,21 @@
   // 帯の内側（8〜44px）への直接の侵入では畳んだままにし、
   // ページの右端ボタンを狙ったホバーではレールが出ないようにする。
   const EDGE_ARM_PX = 8;
-  const BAND_PX = 44;
   const OPEN_PX = 236;
   const DWELL_MS = 400;
   const CLOSE_DELAY_MS = 250;
   let dwellTimer = 0;
   let closeTimer = 0;
   let armed = false;
+  // 畳み表示モード。'translucent'（半透明・既定）/ 'slim'（20px の細い帯）/
+  // 'hidden'（近接まで非表示）。既定は rail-config.js、レール上の右クリックで
+  // セッション限定に切り替えられる（永続化しない設計のため storage は使わない）。
+  function setMode(mode) {
+    if (mode !== 'translucent' && mode !== 'slim' && mode !== 'hidden') return;
+    state.mode = mode;
+    rail.classList.toggle('is-slim', mode === 'slim');
+    rail.classList.toggle('is-hidden', mode === 'hidden');
+  }
   function setNear(near) {
     if (state.pointerNear === near) return;
     state.pointerNear = near;
@@ -182,6 +198,10 @@
   function scheduleClose() {
     clearTimeout(closeTimer);
     closeTimer = setTimeout(() => { armed = false; setNear(false); }, CLOSE_DELAY_MS);
+  }
+  // 帯の幅はモードに追従する（slim は細い帯ぶんだけ）。
+  function bandPx() {
+    return state.mode === 'slim' ? 20 : 44;
   }
   document.addEventListener('mousemove', (event) => {
     const dRight = window.innerWidth - event.clientX;
@@ -195,7 +215,7 @@
       setNear(true);
       return;
     }
-    if (dRight <= BAND_PX && !armed) {
+    if (dRight <= bandPx() && !armed) {
       clearTimeout(dwellTimer);
       dwellTimer = setTimeout(() => { armed = true; setNear(true); }, DWELL_MS);
       return;
@@ -255,6 +275,36 @@
     menu.querySelector('button')?.focus();
   }
 
+  // レールの行以外（余白・＋ボタン等）での右クリック用。表示モードのセッション切替。
+  function openModeMenu(anchor) {
+    closeMenu();
+    const items = [
+      ['半透明のアイコン列（既定）', 'translucent'],
+      ['細い帯（20px）', 'slim'],
+      ['近接まで隠す', 'hidden']
+    ];
+    for (const [label, mode] of items) {
+      const b = el('button', 'menu-item', (mode === state.mode ? '✓ ' : '　') + label);
+      b.type = 'button';
+      b.setAttribute('role', 'menuitem');
+      b.addEventListener('click', () => {
+        state.modeTouched = true;
+        setMode(mode);
+        closeMenu();
+      });
+      menu.appendChild(b);
+    }
+    menu.appendChild(el('div', 'menu-sep'));
+    menu.appendChild(el('div', 'menu-note', 'このページだけの切替です。既定は rail-config.js で変更'));
+    menu.hidden = false;
+    syncOpen();
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+    menu.style.left = `${Math.max(8, Math.min(anchor.x - mw - 4, window.innerWidth - mw - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(anchor.y, window.innerHeight - mh - 8))}px`;
+    menu.querySelector('button')?.focus();
+  }
+
   function row(tab) {
     const r = el('div', 'row' + (tab.active ? ' is-active' : ''));
     r.title = tab.title || '名称なし';
@@ -300,6 +350,7 @@
     r.append(more, close);
     r.addEventListener('contextmenu', (event) => {
       event.preventDefault();
+      event.stopPropagation();
       openMenu(tab, { x: event.clientX, y: event.clientY });
     });
     r.addEventListener('dragstart', (event) => {
@@ -350,7 +401,7 @@
     if (Number.isInteger(state.draggedTabId)) { state.renderDeferred = true; return; }
     state.renderDeferred = false;
     // メニューは、対象のタブが無くなったときだけ閉じる。
-    if (!menu.hidden && !state.tabs.some(t => t.id === state.menuTabId)) closeMenu();
+    if (!menu.hidden && Number.isInteger(state.menuTabId) && !state.tabs.some(t => t.id === state.menuTabId)) closeMenu();
     const frag = document.createDocumentFragment();
     const shown = state.tabs.filter(matches);
     if (!shown.length) {
@@ -368,6 +419,8 @@
   function accept(data) {
     state.tabs = data.tabs || [];
     state.groups = new Map((data.groups || []).map(g => [g.id, g]));
+    if (typeof data.mode === 'string') state.defaultMode = data.mode;
+    if (!state.modeTouched) setMode(state.defaultMode);
     render();
   }
 
@@ -403,6 +456,10 @@
   });
   rail.addEventListener('pointerdown', () => {
     if (!menu.hidden) closeMenu();
+  });
+  rail.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    openModeMenu({ x: event.clientX, y: event.clientY });
   });
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'rail-tabs' && Array.isArray(msg.tabs)) accept(msg);

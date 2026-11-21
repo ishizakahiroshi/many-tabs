@@ -23,7 +23,7 @@ assert "connect-src 'none'" in manifest['content_security_policy']['extension_pa
 assert "img-src 'self'" in manifest['content_security_policy']['extension_pages']
 assert manifest['side_panel']['default_path'] == 'sidepanel.html'
 assert manifest['background']['service_worker'] == 'background.js'
-files = ('sidepanel.js', 'background.js', 'rail.js')
+files = ('sidepanel.js', 'background.js', 'rail.js', 'rail-config.js')
 source = '\n'.join((ROOT / file).read_text(encoding='utf-8') for file in files)
 # Comments/documentation may mention these APIs; inspect call expressions only.
 for pattern in [r'\bfetch\s*\(', r'\bXMLHttpRequest\s*\(', r'\bWebSocket\s*\(',

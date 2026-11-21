@@ -1,5 +1,14 @@
 'use strict';
 
+// レールの畳み表示モードの既定値（同梱の rail-config.js から読む。無ければ半透明）。
+let COLLAPSED_MODE = 'translucent';
+try {
+  importScripts('rail-config.js');
+  if (typeof RAIL_CONFIG === 'object' && RAIL_CONFIG && typeof RAIL_CONFIG.collapsedMode === 'string') {
+    COLLAPSED_MODE = RAIL_CONFIG.collapsedMode;
+  }
+} catch (_) { /* rail-config.js が無い環境では既定値のまま */ }
+
 // 右側か左側かはユーザーのChrome設定に従う。
 // データ送信、アクセスログ、外部サービスとの通信は一切実装していない。
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
@@ -27,6 +36,7 @@ async function snapshot(windowId) {
   ]);
   return {
     type: 'rail-tabs',
+    mode: COLLAPSED_MODE,
     tabs: tabs.sort((a, b) => a.index - b.index).map(t => ({
       id: t.id, index: t.index, title: t.title || '', url: t.url || '', active: !!t.active,
       pinned: !!t.pinned, groupId: t.groupId, audible: !!t.audible,

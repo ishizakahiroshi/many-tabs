@@ -36,6 +36,7 @@ Chrome 拡張機能（Manifest V3）。右側に外部通信を一切行わな�
 manifest.json        MV3 マニフェスト（permissions: sidePanel / tabs / tabGroups / favicon + content_scripts 宣言）
 background.js        service worker（アイコン押下でサイドパネル・レールへの配信と操作中継）
 rail.js              右端レール（content script・closed Shadow DOM overlay）
+rail-config.js       レール畳み表示の既定モード（background.js が importScripts で読む）
 sidepanel.html / sidepanel.js / styles.css   サイドパネルの画面・タブ操作
 icons/               拡張機能アイコン（16/32/48/128）
 tests/               security-check.py（静的チェック）
