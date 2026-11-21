@@ -3,7 +3,7 @@
   "name": "Right Tabs Local",
   "short_name": "Right Tabs",
   "description": "右側に垂直タブを表示する、外部送信なしのローカル専用拡張機能。",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "minimum_chrome_version": "116",
   "permissions": [
     "sidePanel",

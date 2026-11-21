@@ -31,13 +31,17 @@
     .rail.is-slim:not(.is-open) .sep{margin:5px 4px}
     .rail.pos-left{right:auto;left:0;border-left:0;border-right:1px solid rgba(49,59,77,.55)}
     .rail.pos-left.is-open{border-right-color:#313b4d}
+    /* アイコンは画面の辺側に固定し、展開で伸びるのはタイトル側だけにする。
+       右レールは行を反転してアイコン列を右端に合わせる（左は既定順で左端に合う） */
+    .rail:not(.pos-left):not(.pos-top):not(.pos-bottom) .row{flex-direction:row-reverse}
+    .rail:not(.pos-left):not(.pos-top):not(.pos-bottom) .main{flex-direction:row-reverse}
     /* 上下位置: 畳み時は 28px のアイコン横帯、展開時は 64px の横チップ帯。
        縦リストにはならないので画面を塞がない */
     .rail.pos-top,.rail.pos-bottom{top:auto;left:0;right:0;width:100%;height:28px;
       flex-direction:row;border-left:0}
     .rail.pos-top{top:0;border-bottom:1px solid rgba(49,59,77,.55)}
     .rail.pos-bottom{bottom:0;border-top:1px solid rgba(49,59,77,.55)}
-    .rail.pos-top.is-open,.rail.pos-bottom.is-open{width:100%;height:64px}
+    .rail.pos-top.is-open,.rail.pos-bottom.is-open{width:100%;height:40px}
     .rail.pos-top.is-open{border-bottom-color:#313b4d}
     .rail.pos-bottom.is-open{border-top-color:#313b4d}
     .rail.pos-top.is-slim:not(.is-open),.rail.pos-bottom.is-slim:not(.is-open){height:16px;width:100%}
@@ -45,6 +49,9 @@
     .rail.pos-top .list,.rail.pos-bottom .list{
       display:flex;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:0 4px}
     .rail.pos-top .row,.rail.pos-bottom .row{height:auto}
+    /* 横帯のチップは畳み時と同じ辺側に揃え、展開の余白は内側へ伸ばす */
+    .rail.pos-top.is-open .row{height:30px;align-self:flex-start}
+    .rail.pos-bottom.is-open .row{height:30px;align-self:flex-end}
     .rail.pos-top .row.is-active::before,.rail.pos-bottom .row.is-active::before{
       left:0;right:0;width:auto;height:3px}
     .rail.pos-top .row.is-active::before{top:auto;bottom:0}
@@ -291,8 +298,8 @@
     return window.innerWidth - event.clientX;
   }
   function openExtent() {
-    // 上下位置の展開は 64px の横帯なので閉域もそれに合わせる
-    return horizontal() ? 64 : OPEN_PX;
+    // 上下位置の展開は 40px の横帯なので閉域もそれに合わせる
+    return horizontal() ? 40 : OPEN_PX;
   }
   function setNear(near) {
     if (state.pointerNear === near) return;
