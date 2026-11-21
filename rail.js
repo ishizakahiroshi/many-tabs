@@ -247,6 +247,10 @@
   function send(msg) {
     try { chrome.runtime.sendMessage(msg); } catch (_) { /* ignore */ }
   }
+  // 表示モード・位置の切替を background のメモリへ送り、同じタブの遷移をまたいで保持する
+  function sendPref() {
+    send({ type: 'rail-pref', mode: state.mode, position: state.position });
+  }
   function faviconUrl(url) {
     if (!url) return null;
     try {
@@ -396,6 +400,7 @@
     if (dockTarget) {
       state.positionTouched = true;
       setPosition(dockTarget);
+      sendPref();
       dockTarget = null;
     }
   }
@@ -521,6 +526,7 @@
       item(label, mode === state.mode, () => {
         state.modeTouched = true;
         setMode(mode);
+        sendPref();
       });
     }
     menu.appendChild(el('div', 'menu-sep'));
@@ -528,10 +534,11 @@
       item(`位置: ${label}`, pos === state.position, () => {
         state.positionTouched = true;
         setPosition(pos);
+        sendPref();
       });
     }
     menu.appendChild(el('div', 'menu-sep'));
-    menu.appendChild(el('div', 'menu-note', 'このページだけの切替です。既定・サイト別は rail-config.js'));
+    menu.appendChild(el('div', 'menu-note', 'このタブだけの切替です（遷移をまたぐ）。既定・サイト別は rail-config.js'));
     menu.hidden = false;
     syncOpen();
     placeMenu(anchor);
@@ -678,6 +685,11 @@
         if (typeof ov.collapsedMode === 'string') state.defaultMode = ov.collapsedMode;
         if (typeof ov.position === 'string') state.defaultPosition = ov.position;
       }
+    }
+    // このタブで以前切り替えた設定（画面遷移をまたいで保持される・background のメモリのみ）
+    if (data.tabPref && typeof data.tabPref === 'object') {
+      if (typeof data.tabPref.mode === 'string') state.defaultMode = data.tabPref.mode;
+      if (typeof data.tabPref.position === 'string') state.defaultPosition = data.tabPref.position;
     }
     if (!state.modeTouched) setMode(state.defaultMode);
     if (!state.positionTouched) setPosition(state.defaultPosition);

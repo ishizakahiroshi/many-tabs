@@ -24,6 +24,10 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
 // content script からは chrome.tabs API を直接使えないため、
 // 一覧はここで作って送り、操作は送り元と同じウィンドウのタブに限って受理する。
 
+// タブごとのレール表示設定（メモリのみ・永続化しない）。
+// ページ内で切り替えたモード・位置を同じタブの画面遷移をまたいで保持する。
+const railPrefs = new Map();
+
 const PUSH_DEBOUNCE_MS = 80;
 const pushTimers = new Map();
 function schedulePush(windowId) {
@@ -55,14 +59,17 @@ async function snapshot(windowId) {
 }
 
 async function pushToWindow(windowId) {
-  const data = await snapshot(windowId);
-  await Promise.all(data.tabs.map(t =>
-    chrome.tabs.sendMessage(t.id, data).catch(() => {})
+  const base = await snapshot(windowId);
+  await Promise.all(base.tabs.map(t =>
+    chrome.tabs.sendMessage(t.id, { ...base, tabPref: railPrefs.get(t.id) || null }).catch(() => {})
   ));
 }
 
 chrome.tabs.onCreated.addListener(tab => schedulePush(tab.windowId));
-chrome.tabs.onRemoved.addListener((id, info) => schedulePush(info.windowId));
+chrome.tabs.onRemoved.addListener((id, info) => {
+  railPrefs.delete(id);
+  schedulePush(info.windowId);
+});
 chrome.tabs.onUpdated.addListener((id, info, tab) => schedulePush(tab.windowId));
 chrome.tabs.onMoved.addListener((id, info) => schedulePush(info.windowId));
 chrome.tabs.onAttached.addListener((id, info) => schedulePush(info.newWindowId));
@@ -80,8 +87,19 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   const win = sender && sender.tab && sender.tab.windowId;
   if (!Number.isInteger(win) || !msg || typeof msg.type !== 'string') return false;
   if (msg.type === 'rail-init') {
-    snapshot(win).then(respond).catch(() => respond(null));
+    snapshot(win).then(data => {
+      data.tabPref = railPrefs.get(sender.tab.id) || null;
+      respond(data);
+    }).catch(() => respond(null));
     return true;
+  }
+  if (msg.type === 'rail-pref') {
+    // ページ内切替をタブ単位で記憶する（メモリのみ・ストレージ不使用）
+    const pref = {};
+    if (typeof msg.mode === 'string') pref.mode = msg.mode;
+    if (typeof msg.position === 'string') pref.position = msg.position;
+    railPrefs.set(sender.tab.id, pref);
+    return false;
   }
   action(msg, win);
   return false;
