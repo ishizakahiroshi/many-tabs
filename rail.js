@@ -64,6 +64,15 @@
     .rail.pos-top.is-open .search-wrap,.rail.pos-bottom.is-open .search-wrap{
       display:flex;align-items:center;width:170px;flex:none;padding:0 6px;
       border-bottom:0;border-right:1px solid #313b4d}
+    /* 上下の畳み帯はクリックスルーのまま、中央のツマミだけを押せる開閉ボタンにする。
+       帯の下にあるページ側のボタンを狙うホバーではレールが出ない */
+    .notch{position:absolute;display:none;width:56px;height:11px;left:50%;transform:translateX(-50%);
+      border:0;padding:0;cursor:pointer;pointer-events:auto;
+      background-image:radial-gradient(circle,rgba(232,237,246,.8) 1.2px,transparent 1.4px);
+      background-size:9px 5px;background-position:center;background-repeat:repeat}
+    .rail.pos-top .notch{display:block;bottom:-3px;border-radius:0 0 8px 8px;background-color:rgba(23,29,41,.75)}
+    .rail.pos-bottom .notch{display:block;top:-3px;border-radius:8px 8px 0 0;background-color:rgba(23,29,41,.75)}
+    .notch:hover{background-color:rgba(35,45,62,.9)}
     .grip{display:none;height:14px;cursor:grab;flex:none;
       background-image:radial-gradient(circle,rgba(137,149,169,.9) 1.2px,transparent 1.4px);
       background-size:9px 6px;background-position:center;background-repeat:repeat}
@@ -138,6 +147,8 @@
         border-left-color:rgba(209,217,229,.6)}
       .rail.pos-top.is-open .search-wrap,.rail.pos-bottom.is-open .search-wrap{
         border-right-color:#d1d9e5}
+      .rail.pos-top .notch,.rail.pos-bottom .notch{background-color:rgba(246,248,252,.8)}
+      .notch:hover{background-color:rgba(226,232,242,.95)}
       .search-wrap{border-bottom-color:#d1d9e5}
       .search{background:#fff;border-color:#d1d9e5;color:#202939}
       .search:focus{border-color:#3068c8}
@@ -199,6 +210,11 @@
   add.title = '新しいタブ';
   add.addEventListener('click', () => send({ type: 'rail-new' }));
   rail.append(grip, searchWrap, list, add);
+  const notch = el('button', 'notch');
+  notch.type = 'button';
+  notch.title = 'レールの開閉';
+  notch.setAttribute('aria-label', 'レールの開閉');
+  rail.appendChild(notch);
   const menu = el('div', 'menu');
   menu.hidden = true;
   menu.setAttribute('role', 'menu');
@@ -355,13 +371,20 @@
       setNear(true);
       return;
     }
-    if (dist <= bandPx() && !armed) {
+    // 上下位置は滞留で開かない（帯の下のページ UI を狙うホバーと衝突するため）。
+    // 上下は端タッチか中央ツマミのクリックでのみ開く。
+    if (!horizontal() && dist <= bandPx() && !armed) {
       clearTimeout(dwellTimer);
       dwellTimer = setTimeout(() => { armed = true; setNear(true); }, DWELL_MS);
       return;
     }
     clearTimeout(dwellTimer);
   }, { passive: true });
+  notch.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (state.pointerNear) { armed = false; setNear(false); }
+    else { armed = true; setNear(true); }
+  });
   document.documentElement.addEventListener('mouseleave', () => {
     clearTimeout(dwellTimer);
     scheduleClose();
