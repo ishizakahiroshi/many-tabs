@@ -28,7 +28,7 @@ async function snapshot(windowId) {
   return {
     type: 'rail-tabs',
     tabs: tabs.sort((a, b) => a.index - b.index).map(t => ({
-      id: t.id, title: t.title || '', url: t.url || '', active: !!t.active,
+      id: t.id, index: t.index, title: t.title || '', url: t.url || '', active: !!t.active,
       pinned: !!t.pinned, groupId: t.groupId, audible: !!t.audible,
       muted: !!(t.mutedInfo && t.mutedInfo.muted)
     })),
@@ -80,6 +80,19 @@ async function action(msg, win) {
     if (target.windowId !== win) return;
     if (msg.type === 'rail-activate') await chrome.tabs.update(msg.tabId, { active: true });
     else if (msg.type === 'rail-close') await chrome.tabs.remove(msg.tabId);
+    else if (msg.type === 'rail-pin') await chrome.tabs.update(msg.tabId, { pinned: !!msg.pinned });
+    else if (msg.type === 'rail-mute') await chrome.tabs.update(msg.tabId, { muted: !!msg.muted });
+    else if (msg.type === 'rail-duplicate') await chrome.tabs.duplicate(msg.tabId);
+    else if (msg.type === 'rail-ungroup') await chrome.tabs.ungroup([msg.tabId]);
+    else if (msg.type === 'rail-move' && Number.isInteger(msg.index)) {
+      await chrome.tabs.move(msg.tabId, { index: msg.index });
+    } else if (msg.type === 'rail-group' && Number.isInteger(msg.groupId)) {
+      const group = await chrome.tabGroups.get(msg.groupId);
+      if (group.windowId === win) await chrome.tabs.group({ tabIds: [msg.tabId], groupId: msg.groupId });
+    } else if (msg.type === 'rail-group-new') {
+      const groupId = await chrome.tabs.group({ tabIds: [msg.tabId], createProperties: { windowId: win } });
+      await chrome.tabGroups.update(groupId, { title: '新しいグループ', color: 'blue' });
+    }
   } catch (error) {
     console.error('Right Tabs rail:', error);
   }
