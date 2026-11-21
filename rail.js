@@ -205,7 +205,8 @@
     tabs: [], groups: new Map(), filter: '', pointerNear: false,
     draggedTabId: null, renderDeferred: false, menuTabId: null,
     mode: 'translucent', defaultMode: 'translucent', modeTouched: false,
-    position: 'right', defaultPosition: 'right', ovPosition: null
+    position: 'right', defaultPosition: 'right', ovPosition: null,
+    faviconFail: new Set()
   };
 
   const host = document.createElement('div');
@@ -565,11 +566,16 @@
     const main = el('button', 'main');
     main.type = 'button';
     const src = faviconUrl(tab.url);
-    if (src) {
+    // _favicon はアイコンが無いページで Chrome が内部エラーを記録する。
+    // 一度失敗した URL は再要求せずフォールバックを出し、エラーログの増殖を止める
+    if (src && !state.faviconFail.has(src)) {
       const img = el('img', 'fav');
       img.alt = '';
       img.src = src;
-      img.addEventListener('error', () => img.replaceWith(el('span', 'fav-fb', '◇')), { once: true });
+      img.addEventListener('error', () => {
+        state.faviconFail.add(src);
+        img.replaceWith(el('span', 'fav-fb', '◇'));
+      }, { once: true });
       main.appendChild(img);
     } else {
       main.appendChild(el('span', 'fav-fb', '◇'));
