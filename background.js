@@ -3,11 +3,15 @@
 // レールの畳み表示モード・位置の既定値（同梱の rail-config.js から読む。無ければ半透明・右）。
 let COLLAPSED_MODE = 'translucent';
 let POSITION = 'right';
+let OVERRIDES = {};
 try {
   importScripts('rail-config.js');
   if (typeof RAIL_CONFIG === 'object' && RAIL_CONFIG) {
     if (typeof RAIL_CONFIG.collapsedMode === 'string') COLLAPSED_MODE = RAIL_CONFIG.collapsedMode;
     if (typeof RAIL_CONFIG.position === 'string') POSITION = RAIL_CONFIG.position;
+    if (RAIL_CONFIG.overrides && typeof RAIL_CONFIG.overrides === 'object') {
+      OVERRIDES = RAIL_CONFIG.overrides;
+    }
   }
 } catch (_) { /* rail-config.js が無い環境では既定値のまま */ }
 
@@ -40,6 +44,7 @@ async function snapshot(windowId) {
     type: 'rail-tabs',
     mode: COLLAPSED_MODE,
     position: POSITION,
+    overrides: OVERRIDES,
     tabs: tabs.sort((a, b) => a.index - b.index).map(t => ({
       id: t.id, index: t.index, title: t.title || '', url: t.url || '', active: !!t.active,
       pinned: !!t.pinned, groupId: t.groupId, audible: !!t.audible,

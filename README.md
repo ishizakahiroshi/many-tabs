@@ -79,7 +79,7 @@ Chrome拡張機能（Manifest V3）。右側にローカルで動くタブ一覧
 - `manifest.json`: 拡張機能の宣言・必要権限
 - `background.js`: 拡張機能アイコンでサイドパネルを開く設定、レールへのタブ情報配信・操作中継
 - `rail.js`: 右端レール（content script・Shadow DOM overlay）
-- `rail-config.js`: レール畳み表示の既定（`collapsedMode`: `translucent` / `slim` / `hidden`、`position`: `right` / `left` / `top` / `bottom`）
+- `rail-config.js`: レール畳み表示の既定（`collapsedMode`: `translucent` / `slim` / `hidden`、`position`: `right` / `left` / `top` / `bottom`）とホスト名ごとの `overrides`（干渉するサイトだけ `hidden` 等にできる）
 - `sidepanel.html` / `styles.css`: サイドパネル画面
 - `sidepanel.js`: タブ操作・イベント・ローカルUI
 - `icons/*.png`: ローカルアイコン

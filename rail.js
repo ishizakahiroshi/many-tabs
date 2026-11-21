@@ -453,7 +453,7 @@
       });
     }
     menu.appendChild(el('div', 'menu-sep'));
-    menu.appendChild(el('div', 'menu-note', 'このページだけの切替です。既定は rail-config.js で変更'));
+    menu.appendChild(el('div', 'menu-note', 'このページだけの切替です。既定・サイト別は rail-config.js'));
     menu.hidden = false;
     syncOpen();
     placeMenu(anchor);
@@ -577,11 +577,29 @@
     }
     list.replaceChildren(frag);
   }
+  // ホスト名に一致する上書きを最長一致で返す（サブドメインは親ドメインの設定に従う）
+  function hostOverride(overrides) {
+    const host = location.hostname || '';
+    let best = null;
+    for (const key of Object.keys(overrides)) {
+      if (host === key || host.endsWith('.' + key)) {
+        if (!best || key.length > best.length) best = key;
+      }
+    }
+    return best ? overrides[best] : null;
+  }
   function accept(data) {
     state.tabs = data.tabs || [];
     state.groups = new Map((data.groups || []).map(g => [g.id, g]));
     if (typeof data.mode === 'string') state.defaultMode = data.mode;
     if (typeof data.position === 'string') state.defaultPosition = data.position;
+    if (data.overrides && typeof data.overrides === 'object') {
+      const ov = hostOverride(data.overrides);
+      if (ov) {
+        if (typeof ov.collapsedMode === 'string') state.defaultMode = ov.collapsedMode;
+        if (typeof ov.position === 'string') state.defaultPosition = ov.position;
+      }
+    }
     if (!state.modeTouched) setMode(state.defaultMode);
     if (!state.positionTouched) setPosition(state.defaultPosition);
     render();
