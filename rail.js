@@ -17,11 +17,13 @@
 
   const CSS = `
     .rail{position:absolute;top:0;right:0;height:100%;width:44px;box-sizing:border-box;
-      display:flex;flex-direction:column;background:rgba(14,18,27,.96);
-      border-left:1px solid #313b4d;color:#e8edf6;
+      display:flex;flex-direction:column;background:rgba(14,18,27,.45);
+      border-left:1px solid rgba(49,59,77,.55);color:#e8edf6;
       font:13px system-ui,-apple-system,"Segoe UI",sans-serif;
-      transition:width .15s ease;pointer-events:none}
-    .rail.is-open{width:236px;pointer-events:auto}
+      transition:width .15s ease,background-color .15s ease,border-left-color .15s ease;
+      pointer-events:none}
+    .rail.is-open{width:236px;pointer-events:auto;
+      background:rgba(14,18,27,.96);border-left-color:#313b4d}
     .search-wrap{display:none;padding:5px 6px;border-bottom:1px solid #313b4d}
     .rail.is-open .search-wrap{display:block}
     .search{width:100%;box-sizing:border-box;height:24px;padding:0 8px;
@@ -53,8 +55,9 @@
       background:none;color:#8995a9;font-size:14px;cursor:pointer;opacity:0;border-radius:5px}
     .rail.is-open .more,.rail.is-open .close{opacity:1}
     .more:hover,.close:hover{background:rgba(255,255,255,.12);color:#fff}
-    .new-tab{flex:0 0 auto;height:30px;border:0;border-top:1px solid #313b4d;
-      background:#171d29;color:#e8edf6;font-size:16px;cursor:pointer}
+    .new-tab{flex:0 0 auto;height:30px;border:0;border-top:1px solid rgba(49,59,77,.55);
+      background:rgba(23,29,41,.5);color:#e8edf6;font-size:16px;cursor:pointer}
+    .rail.is-open .new-tab{background:#171d29;border-top-color:#313b4d}
     .new-tab:hover{background:#242e3e}
     .sep{height:1px;background:#313b4d;margin:5px 8px}
     .empty{padding:10px;color:#8995a9;font-size:12px;line-height:1.5}
@@ -71,7 +74,8 @@
     .menu-item.danger:hover,.menu-item.danger:focus-visible{background:rgba(240,116,116,.14)}
     .menu-sep{height:1px;background:#313b4d;margin:4px 6px}
     @media (prefers-color-scheme: light){
-      .rail{background:rgba(246,248,252,.97);border-left-color:#d1d9e5;color:#202939}
+      .rail{background:rgba(246,248,252,.55);border-left-color:rgba(209,217,229,.6);color:#202939}
+      .rail.is-open{background:rgba(246,248,252,.97);border-left-color:#d1d9e5}
       .search-wrap{border-bottom-color:#d1d9e5}
       .search{background:#fff;border-color:#d1d9e5;color:#202939}
       .search:focus{border-color:#3068c8}
@@ -81,7 +85,8 @@
       .is-active .title{color:#12325f}
       .fav-fb,.ind,.more,.close{color:#6b778b}
       .more:hover,.close:hover{background:rgba(0,0,0,.08);color:#202939}
-      .new-tab{background:#fff;border-top-color:#d1d9e5;color:#202939}
+      .new-tab{background:rgba(255,255,255,.55);border-top-color:rgba(209,217,229,.6);color:#202939}
+      .rail.is-open .new-tab{background:#fff;border-top-color:#d1d9e5}
       .new-tab:hover{background:#e2eaf5}
       .sep{background:#d1d9e5}
       .empty{color:#6b778b}
