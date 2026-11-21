@@ -20,7 +20,7 @@
       display:flex;flex-direction:column;background:rgba(14,18,27,.45);
       border-left:1px solid rgba(49,59,77,.55);color:#e8edf6;
       font:13px system-ui,-apple-system,"Segoe UI",sans-serif;
-      transition:width .15s ease,background-color .15s ease,border-left-color .15s ease;
+      transition:width .15s ease,height .15s ease,background-color .15s ease,border-color .15s ease;
       pointer-events:none}
     .rail.is-open{width:236px;pointer-events:auto;
       background:rgba(14,18,27,.96);border-left-color:#313b4d}
@@ -29,6 +29,29 @@
     .rail.is-slim:not(.is-open) .main{padding:0 2px}
     .rail.is-slim:not(.is-open) .ind,.rail.is-slim:not(.is-open) .gdot{display:none}
     .rail.is-slim:not(.is-open) .sep{margin:5px 4px}
+    .rail.pos-left{right:auto;left:0;border-left:0;border-right:1px solid rgba(49,59,77,.55)}
+    .rail.pos-left.is-open{border-right-color:#313b4d}
+    .rail.pos-top,.rail.pos-bottom{top:auto;left:0;right:0;width:100%;height:44px;
+      flex-direction:row;border-left:0}
+    .rail.pos-top{top:0;border-bottom:1px solid rgba(49,59,77,.55)}
+    .rail.pos-bottom{bottom:0;border-top:1px solid rgba(49,59,77,.55)}
+    .rail.pos-top.is-open,.rail.pos-bottom.is-open{width:100%;height:50vh;flex-direction:column}
+    .rail.pos-top.is-open{border-bottom-color:#313b4d}
+    .rail.pos-bottom.is-open{border-top-color:#313b4d}
+    .rail.pos-top.is-slim:not(.is-open),.rail.pos-bottom.is-slim:not(.is-open){height:20px;width:100%}
+    .rail.pos-top:not(.is-open) .list,.rail.pos-bottom:not(.is-open) .list{
+      display:flex;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:0 4px}
+    .rail.pos-top:not(.is-open) .row,.rail.pos-bottom:not(.is-open) .row{height:44px}
+    .rail.pos-top:not(.is-open) .main,.rail.pos-bottom:not(.is-open) .main{padding:0 4px;height:44px}
+    .rail.pos-top:not(.is-open) .title,.rail.pos-bottom:not(.is-open) .title{display:none}
+    .rail.pos-top:not(.is-open) .gdot,.rail.pos-bottom:not(.is-open) .gdot{position:absolute;bottom:4px;right:4px}
+    .rail.pos-top:not(.is-open) .sep,.rail.pos-bottom:not(.is-open) .sep{width:1px;height:auto;margin:4px 5px}
+    .rail.pos-top:not(.is-open) .row.drop-before::after,.rail.pos-bottom:not(.is-open) .row.drop-before::after{
+      left:-1px;right:auto;top:4px;bottom:4px;width:2px;height:auto}
+    .rail.pos-top:not(.is-open) .row.drop-after::after,.rail.pos-bottom:not(.is-open) .row.drop-after::after{
+      right:-1px;left:auto;top:4px;bottom:4px;width:2px;height:auto}
+    .rail.pos-top:not(.is-open) .new-tab,.rail.pos-bottom:not(.is-open) .new-tab{
+      width:36px;height:44px;border-top:0;border-left:1px solid rgba(49,59,77,.55)}
     .search-wrap{display:none;padding:5px 6px;border-bottom:1px solid #313b4d}
     .rail.is-open .search-wrap{display:block}
     .search{width:100%;box-sizing:border-box;height:24px;padding:0 8px;
@@ -82,6 +105,14 @@
     @media (prefers-color-scheme: light){
       .rail{background:rgba(246,248,252,.55);border-left-color:rgba(209,217,229,.6);color:#202939}
       .rail.is-open{background:rgba(246,248,252,.97);border-left-color:#d1d9e5}
+      .rail.pos-left{border-right-color:rgba(209,217,229,.6)}
+      .rail.pos-left.is-open{border-right-color:#d1d9e5}
+      .rail.pos-top{border-bottom-color:rgba(209,217,229,.6)}
+      .rail.pos-bottom{border-top-color:rgba(209,217,229,.6)}
+      .rail.pos-top.is-open{border-bottom-color:#d1d9e5}
+      .rail.pos-bottom.is-open{border-top-color:#d1d9e5}
+      .rail.pos-top:not(.is-open) .new-tab,.rail.pos-bottom:not(.is-open) .new-tab{
+        border-left-color:rgba(209,217,229,.6)}
       .search-wrap{border-bottom-color:#d1d9e5}
       .search{background:#fff;border-color:#d1d9e5;color:#202939}
       .search:focus{border-color:#3068c8}
@@ -109,7 +140,8 @@
   const state = {
     tabs: [], groups: new Map(), filter: '', pointerNear: false,
     draggedTabId: null, renderDeferred: false, menuTabId: null,
-    mode: 'translucent', defaultMode: 'translucent', modeTouched: false
+    mode: 'translucent', defaultMode: 'translucent', modeTouched: false,
+    position: 'right', defaultPosition: 'right', positionTouched: false
   };
 
   const host = document.createElement('div');
@@ -190,6 +222,27 @@
     rail.classList.toggle('is-slim', mode === 'slim');
     rail.classList.toggle('is-hidden', mode === 'hidden');
   }
+  // 位置。'right'（既定）/ 'left' / 'top' / 'bottom'。
+  // top・bottom は畳み時にファビコンを横並びにし、展開時は全幅の縦リストになる。
+  function setPosition(pos) {
+    if (pos !== 'right' && pos !== 'left' && pos !== 'top' && pos !== 'bottom') return;
+    state.position = pos;
+    rail.classList.toggle('pos-left', pos === 'left');
+    rail.classList.toggle('pos-top', pos === 'top');
+    rail.classList.toggle('pos-bottom', pos === 'bottom');
+  }
+  function horizontal() {
+    return state.position === 'top' || state.position === 'bottom';
+  }
+  function edgeDist(event) {
+    if (state.position === 'left') return event.clientX;
+    if (state.position === 'top') return event.clientY;
+    if (state.position === 'bottom') return window.innerHeight - event.clientY;
+    return window.innerWidth - event.clientX;
+  }
+  function openExtent() {
+    return horizontal() ? Math.round(window.innerHeight * 0.5) : OPEN_PX;
+  }
   function setNear(near) {
     if (state.pointerNear === near) return;
     state.pointerNear = near;
@@ -204,18 +257,18 @@
     return state.mode === 'slim' ? 20 : 44;
   }
   document.addEventListener('mousemove', (event) => {
-    const dRight = window.innerWidth - event.clientX;
+    const dist = edgeDist(event);
     if (state.pointerNear) {
-      if (dRight > OPEN_PX) scheduleClose(); else clearTimeout(closeTimer);
+      if (dist > openExtent()) scheduleClose(); else clearTimeout(closeTimer);
       return;
     }
-    if (dRight <= EDGE_ARM_PX) {
+    if (dist <= EDGE_ARM_PX) {
       armed = true;
       clearTimeout(dwellTimer);
       setNear(true);
       return;
     }
-    if (dRight <= bandPx() && !armed) {
+    if (dist <= bandPx() && !armed) {
       clearTimeout(dwellTimer);
       dwellTimer = setTimeout(() => { armed = true; setNear(true); }, DWELL_MS);
       return;
@@ -267,41 +320,56 @@
     item('タブを閉じる', () => send({ type: 'rail-close', tabId: tab.id }), true);
     menu.hidden = false;
     syncOpen();
-    // レールは右端にあるので、メニューはカーソルの左側へ開く
-    const mw = menu.offsetWidth;
-    const mh = menu.offsetHeight;
-    menu.style.left = `${Math.max(8, Math.min(anchor.x - mw - 4, window.innerWidth - mw - 8))}px`;
-    menu.style.top = `${Math.max(8, Math.min(anchor.y, window.innerHeight - mh - 8))}px`;
+    placeMenu(anchor);
     menu.querySelector('button')?.focus();
   }
 
-  // レールの行以外（余白・＋ボタン等）での右クリック用。表示モードのセッション切替。
+  // メニューはレールがある辺の内側へ開く
+  function placeMenu(anchor) {
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+    let left;
+    let top;
+    if (state.position === 'left') { left = anchor.x + 4; top = anchor.y; }
+    else if (state.position === 'top') { left = anchor.x - mw / 2; top = anchor.y + 4; }
+    else if (state.position === 'bottom') { left = anchor.x - mw / 2; top = anchor.y - mh - 4; }
+    else { left = anchor.x - mw - 4; top = anchor.y; }
+    menu.style.left = `${Math.max(8, Math.min(left, window.innerWidth - mw - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(top, window.innerHeight - mh - 8))}px`;
+  }
+
+  // レールの行以外（余白・＋ボタン等）での右クリック用。表示モード・位置のセッション切替。
   function openModeMenu(anchor) {
     closeMenu();
-    const items = [
+    const item = (label, current, fn) => {
+      const b = el('button', 'menu-item', (current ? '✓ ' : '　') + label);
+      b.type = 'button';
+      b.setAttribute('role', 'menuitem');
+      b.addEventListener('click', () => { fn(); closeMenu(); });
+      menu.appendChild(b);
+    };
+    for (const [label, mode] of [
       ['半透明のアイコン列（既定）', 'translucent'],
       ['細い帯（20px）', 'slim'],
       ['近接まで隠す', 'hidden']
-    ];
-    for (const [label, mode] of items) {
-      const b = el('button', 'menu-item', (mode === state.mode ? '✓ ' : '　') + label);
-      b.type = 'button';
-      b.setAttribute('role', 'menuitem');
-      b.addEventListener('click', () => {
+    ]) {
+      item(label, mode === state.mode, () => {
         state.modeTouched = true;
         setMode(mode);
-        closeMenu();
       });
-      menu.appendChild(b);
+    }
+    menu.appendChild(el('div', 'menu-sep'));
+    for (const [label, pos] of [['右（既定）', 'right'], ['左', 'left'], ['上', 'top'], ['下', 'bottom']]) {
+      item(`位置: ${label}`, pos === state.position, () => {
+        state.positionTouched = true;
+        setPosition(pos);
+      });
     }
     menu.appendChild(el('div', 'menu-sep'));
     menu.appendChild(el('div', 'menu-note', 'このページだけの切替です。既定は rail-config.js で変更'));
     menu.hidden = false;
     syncOpen();
-    const mw = menu.offsetWidth;
-    const mh = menu.offsetHeight;
-    menu.style.left = `${Math.max(8, Math.min(anchor.x - mw - 4, window.innerWidth - mw - 8))}px`;
-    menu.style.top = `${Math.max(8, Math.min(anchor.y, window.innerHeight - mh - 8))}px`;
+    placeMenu(anchor);
     menu.querySelector('button')?.focus();
   }
 
@@ -370,12 +438,20 @@
       });
       if (state.renderDeferred) render();
     });
+    // 横帯（top/bottom・畳み時）の並べ替えは左右の半分で判定する
+    const afterMid = (event) => {
+      const b = r.getBoundingClientRect();
+      if (horizontal() && !rail.classList.contains('is-open')) {
+        return event.clientX >= b.left + b.width / 2;
+      }
+      return event.clientY >= b.top + b.height / 2;
+    };
     r.addEventListener('dragover', (event) => {
       const srcTab = state.tabs.find(t => t.id === state.draggedTabId);
       if (!srcTab || srcTab.id === tab.id || srcTab.groupId !== tab.groupId || srcTab.pinned !== tab.pinned) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
-      const after = event.clientY >= r.getBoundingClientRect().top + r.offsetHeight / 2;
+      const after = afterMid(event);
       r.classList.toggle('drop-before', !after);
       r.classList.toggle('drop-after', after);
     });
@@ -385,7 +461,7 @@
       r.classList.remove('drop-before', 'drop-after');
       if (!srcTab || srcTab.id === tab.id || srcTab.groupId !== tab.groupId || srcTab.pinned !== tab.pinned) return;
       event.preventDefault();
-      const after = event.clientY >= r.getBoundingClientRect().top + r.offsetHeight / 2;
+      const after = afterMid(event);
       // chrome.tabs.moveのindexは移動後の位置を指定する。
       const index = tab.index - (srcTab.index < tab.index ? 1 : 0) + (after ? 1 : 0);
       send({ type: 'rail-move', tabId: srcTab.id, index });
@@ -420,7 +496,9 @@
     state.tabs = data.tabs || [];
     state.groups = new Map((data.groups || []).map(g => [g.id, g]));
     if (typeof data.mode === 'string') state.defaultMode = data.mode;
+    if (typeof data.position === 'string') state.defaultPosition = data.position;
     if (!state.modeTouched) setMode(state.defaultMode);
+    if (!state.positionTouched) setPosition(state.defaultPosition);
     render();
   }
 
