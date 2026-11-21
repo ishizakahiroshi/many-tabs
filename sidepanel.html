@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Right Tabs Local</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="sidepanel.js" defer></script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <img class="app-icon" src="icons/icon32.png" alt="">
+        <div>
+          <div class="brand-title">Right Tabs</div>
+          <div class="brand-subtitle">LOCAL ONLY <span class="safe-dot" aria-hidden="true"></span></div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="refreshButton" class="icon-button" type="button" title="タブ一覧を更新" aria-label="タブ一覧を更新">⟳</button>
+        <button id="newTabButton" class="icon-button primary" type="button" title="新しいタブ" aria-label="新しいタブ">＋</button>
+      </div>
+    </header>
+
+    <div class="search-wrap">
+      <label class="search" for="tabSearch">
+        <span class="search-icon" aria-hidden="true">⌕</span>
+        <input id="tabSearch" type="search" placeholder="タブを検索  /" autocomplete="off" spellcheck="false">
+        <span class="key-hint" aria-hidden="true">/</span>
+      </label>
+      <div class="summary">
+        <span id="tabCount">読み込み中…</span>
+        <span class="summary-right">このウィンドウ</span>
+      </div>
+    </div>
+
+    <main id="tabList" aria-label="タブ一覧" class="tab-list">
+      <div class="empty-state">読み込み中…</div>
+    </main>
+
+    <footer class="footer">
+      <span><span class="status-dot" aria-hidden="true"></span>外部通信なし</span>
+      <span>v0.1.0</span>
+    </footer>
+  </div>
+  <div id="menu" class="menu" role="menu" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
