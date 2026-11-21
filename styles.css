@@ -79,6 +79,27 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .menu button.danger { color: #ff9f9f; }
 .menu .menu-separator { height: 1px; background: var(--outline); margin: 5px 4px; }
 .toast { position: fixed; z-index: 40; bottom: 42px; left: 12px; right: 12px; padding: 10px 12px; border-radius: 8px; background: #3b2740; color: #ffd6dc; border: 1px solid #ae6374; box-shadow: 0 6px 16px #0007; font-size: 12px; }
+@media (max-width: 300px) {
+  .topbar { padding: 9px 10px 8px; }
+  .brand { gap: 7px; }
+  .app-icon { width: 22px; height: 22px; }
+  .brand-title { font-size: 13px; }
+  .brand-subtitle { display: none; }
+  .icon-button { width: 26px; height: 26px; font-size: 17px; border-radius: 7px; }
+  .search-wrap { padding: 8px 8px 6px; }
+  .search { height: 30px; padding: 0 8px; border-radius: 7px; gap: 6px; }
+  .search-icon { font-size: 19px; margin-top: -2px; }
+  .key-hint { display: none; }
+  .summary { margin-top: 6px; font-size: 10px; }
+  .tab-list { padding: 2px 4px 12px; }
+  .section-label { margin: 10px 4px 4px; gap: 5px; }
+  .group-header { padding: 6px 6px; margin: 7px 0 2px; gap: 6px; }
+  .tab-row { min-height: 32px; padding: 2px 2px 2px 6px; gap: 3px; border-radius: 7px; }
+  .tab-main { gap: 6px; padding: 3px 1px; }
+  .tab-domain { display: none; }
+  .tab-mini { width: 20px; height: 24px; font-size: 14px; }
+  .footer { padding: 6px 10px; }
+}
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
 @media (prefers-color-scheme: light) {
   :root { color-scheme: light; --bg: #f6f8fc; --top: #fff; --surface: #edf1f7; --surface-hover: #e2eaf5; --outline: #d1d9e5; --text: #202939; --muted: #6b778b; --active: #dbe9ff; --active-outline: #3068c8; --accent: #3068c8; --green: #239866; --shadow: #192e5226; }
