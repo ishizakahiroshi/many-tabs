@@ -31,27 +31,39 @@
     .rail.is-slim:not(.is-open) .sep{margin:5px 4px}
     .rail.pos-left{right:auto;left:0;border-left:0;border-right:1px solid rgba(49,59,77,.55)}
     .rail.pos-left.is-open{border-right-color:#313b4d}
-    .rail.pos-top,.rail.pos-bottom{top:auto;left:0;right:0;width:100%;height:44px;
+    /* 上下位置: 畳み時は 28px のアイコン横帯、展開時は 64px の横チップ帯。
+       縦リストにはならないので画面を塞がない */
+    .rail.pos-top,.rail.pos-bottom{top:auto;left:0;right:0;width:100%;height:28px;
       flex-direction:row;border-left:0}
     .rail.pos-top{top:0;border-bottom:1px solid rgba(49,59,77,.55)}
     .rail.pos-bottom{bottom:0;border-top:1px solid rgba(49,59,77,.55)}
-    .rail.pos-top.is-open,.rail.pos-bottom.is-open{width:100%;height:50vh;flex-direction:column}
+    .rail.pos-top.is-open,.rail.pos-bottom.is-open{width:100%;height:64px}
     .rail.pos-top.is-open{border-bottom-color:#313b4d}
     .rail.pos-bottom.is-open{border-top-color:#313b4d}
-    .rail.pos-top.is-slim:not(.is-open),.rail.pos-bottom.is-slim:not(.is-open){height:20px;width:100%}
-    .rail.pos-top:not(.is-open) .list,.rail.pos-bottom:not(.is-open) .list{
+    .rail.pos-top.is-slim:not(.is-open),.rail.pos-bottom.is-slim:not(.is-open){height:16px;width:100%}
+    .rail.pos-top .grip,.rail.pos-bottom .grip{width:14px;height:auto}
+    .rail.pos-top .list,.rail.pos-bottom .list{
       display:flex;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:0 4px}
-    .rail.pos-top:not(.is-open) .row,.rail.pos-bottom:not(.is-open) .row{height:44px}
-    .rail.pos-top:not(.is-open) .main,.rail.pos-bottom:not(.is-open) .main{padding:0 4px;height:44px}
+    .rail.pos-top .row,.rail.pos-bottom .row{height:auto}
+    .rail.pos-top .row.is-active::before,.rail.pos-bottom .row.is-active::before{
+      left:0;right:0;width:auto;height:3px}
+    .rail.pos-top .row.is-active::before{top:auto;bottom:0}
+    .rail.pos-bottom .row.is-active::before{top:0;bottom:auto}
+    .rail.pos-top .main,.rail.pos-bottom .main{padding:0 4px;height:100%}
+    .rail.pos-top.is-open .main,.rail.pos-bottom.is-open .main{max-width:200px}
     .rail.pos-top:not(.is-open) .title,.rail.pos-bottom:not(.is-open) .title{display:none}
-    .rail.pos-top:not(.is-open) .gdot,.rail.pos-bottom:not(.is-open) .gdot{position:absolute;bottom:4px;right:4px}
-    .rail.pos-top:not(.is-open) .sep,.rail.pos-bottom:not(.is-open) .sep{width:1px;height:auto;margin:4px 5px}
-    .rail.pos-top:not(.is-open) .row.drop-before::after,.rail.pos-bottom:not(.is-open) .row.drop-before::after{
+    .rail.pos-top.is-open .title,.rail.pos-bottom.is-open .title{max-width:110px}
+    .rail.pos-top .gdot,.rail.pos-bottom .gdot{position:absolute;bottom:4px;right:4px}
+    .rail.pos-top .sep,.rail.pos-bottom .sep{width:1px;height:auto;margin:4px 5px}
+    .rail.pos-top .row.drop-before::after,.rail.pos-bottom .row.drop-before::after{
       left:-1px;right:auto;top:4px;bottom:4px;width:2px;height:auto}
-    .rail.pos-top:not(.is-open) .row.drop-after::after,.rail.pos-bottom:not(.is-open) .row.drop-after::after{
+    .rail.pos-top .row.drop-after::after,.rail.pos-bottom .row.drop-after::after{
       right:-1px;left:auto;top:4px;bottom:4px;width:2px;height:auto}
-    .rail.pos-top:not(.is-open) .new-tab,.rail.pos-bottom:not(.is-open) .new-tab{
-      width:36px;height:44px;border-top:0;border-left:1px solid rgba(49,59,77,.55)}
+    .rail.pos-top .new-tab,.rail.pos-bottom .new-tab{
+      width:36px;height:auto;border-top:0;border-left:1px solid rgba(49,59,77,.55)}
+    .rail.pos-top.is-open .search-wrap,.rail.pos-bottom.is-open .search-wrap{
+      display:flex;align-items:center;width:170px;flex:none;padding:0 6px;
+      border-bottom:0;border-right:1px solid #313b4d}
     .grip{display:none;height:14px;cursor:grab;flex:none;
       background-image:radial-gradient(circle,rgba(137,149,169,.9) 1.2px,transparent 1.4px);
       background-size:9px 6px;background-position:center;background-repeat:repeat}
@@ -122,8 +134,10 @@
       .rail.pos-bottom{border-top-color:rgba(209,217,229,.6)}
       .rail.pos-top.is-open{border-bottom-color:#d1d9e5}
       .rail.pos-bottom.is-open{border-top-color:#d1d9e5}
-      .rail.pos-top:not(.is-open) .new-tab,.rail.pos-bottom:not(.is-open) .new-tab{
+      .rail.pos-top .new-tab,.rail.pos-bottom .new-tab{
         border-left-color:rgba(209,217,229,.6)}
+      .rail.pos-top.is-open .search-wrap,.rail.pos-bottom.is-open .search-wrap{
+        border-right-color:#d1d9e5}
       .search-wrap{border-bottom-color:#d1d9e5}
       .search{background:#fff;border-color:#d1d9e5;color:#202939}
       .search:focus{border-color:#3068c8}
@@ -259,7 +273,8 @@
     return window.innerWidth - event.clientX;
   }
   function openExtent() {
-    return horizontal() ? Math.round(window.innerHeight * 0.5) : OPEN_PX;
+    // 上下位置の展開は 64px の横帯なので閉域もそれに合わせる
+    return horizontal() ? 64 : OPEN_PX;
   }
   function setNear(near) {
     if (state.pointerNear === near) return;
@@ -270,9 +285,10 @@
     clearTimeout(closeTimer);
     closeTimer = setTimeout(() => { armed = false; setNear(false); }, CLOSE_DELAY_MS);
   }
-  // 帯の幅はモードに追従する（slim は細い帯ぶんだけ）。
+  // 帯の厚さはモードと位置に追従する（上下は 28px・slim は細い帯ぶんだけ）。
   function bandPx() {
-    return state.mode === 'slim' ? 20 : 44;
+    if (state.mode === 'slim') return horizontal() ? 16 : 20;
+    return horizontal() ? 28 : 44;
   }
 
   // グリップを掴んで画面の辺へドラッグすると、レールの位置をその辺へ切り替える。
@@ -509,12 +525,10 @@
       });
       if (state.renderDeferred) render();
     });
-    // 横帯（top/bottom・畳み時）の並べ替えは左右の半分で判定する
+    // 横帯（top/bottom）は畳み・展開どちらも横並びなので左右の半分で判定する
     const afterMid = (event) => {
       const b = r.getBoundingClientRect();
-      if (horizontal() && !rail.classList.contains('is-open')) {
-        return event.clientX >= b.left + b.width / 2;
-      }
+      if (horizontal()) return event.clientX >= b.left + b.width / 2;
       return event.clientY >= b.top + b.height / 2;
     };
     r.addEventListener('dragover', (event) => {
