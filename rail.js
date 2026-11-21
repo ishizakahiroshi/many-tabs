@@ -74,17 +74,27 @@
     /* 上下の畳み帯ではアイコンのセルだけがクリックを受ける（=そのままタブ切替）。
        隙間・余白はページへ通るので、下のページ要素は隙間で反応する */
     .rail.pos-top:not(.is-open) .main,.rail.pos-bottom:not(.is-open) .main{pointer-events:auto}
-    /* 中央のツマミは帯の開閉ボタン（帯を開くとアイコン行はそのままになる） */
+    /* 中央のツマミは帯の開閉ボタン（帯を開くとアイコン行はそのままになる）。
+       矢印は開閉方向を示し、開くと反転する */
     .notch{position:absolute;display:none;width:56px;height:11px;left:50%;transform:translateX(-50%);
-      border:0;padding:0;cursor:pointer;pointer-events:auto;
-      background-image:radial-gradient(circle,rgba(232,237,246,.8) 1.2px,transparent 1.4px);
-      background-size:9px 5px;background-position:center;background-repeat:repeat}
+      border:0;padding:0;cursor:pointer;pointer-events:auto}
+    .notch::after{display:block;font-size:9px;line-height:11px;text-align:center;
+      color:rgba(232,237,246,.9);content:''}
     .rail.pos-top .notch{display:block;bottom:-3px;border-radius:0 0 8px 8px;background-color:rgba(23,29,41,.75)}
     .rail.pos-bottom .notch{display:block;top:-3px;border-radius:8px 8px 0 0;background-color:rgba(23,29,41,.75)}
+    .rail.pos-top .notch::after{content:'▾'}
+    .rail.pos-bottom .notch::after{content:'▴'}
+    .rail.pos-top.is-open .notch::after{content:'▴'}
+    .rail.pos-bottom.is-open .notch::after{content:'▾'}
     .notch:hover{background-color:rgba(35,45,62,.9)}
-    .grip{display:none;height:14px;cursor:grab;flex:none;
+    /* グリップは点々の上に移動方向の矢印を重ねる（縦レール=左右へ、横帯=上下へ） */
+    .grip{display:none;height:14px;cursor:grab;flex:none;position:relative;
       background-image:radial-gradient(circle,rgba(137,149,169,.9) 1.2px,transparent 1.4px);
       background-size:9px 6px;background-position:center;background-repeat:repeat}
+    .grip::before{content:'⇔';position:absolute;inset:0;display:flex;
+      align-items:center;justify-content:center;font-size:10px;line-height:1;
+      color:rgba(210,220,236,.95)}
+    .rail.pos-top .grip::before,.rail.pos-bottom .grip::before{content:'⇕'}
     .rail.is-open .grip{display:block}
     .rail.is-dock-dragging .grip{cursor:grabbing}
     .zone{position:fixed;background:rgba(70,130,240,.18);pointer-events:none}
@@ -163,7 +173,9 @@
       .rail.pos-top.is-open .search-wrap,.rail.pos-bottom.is-open .search-wrap{
         border-left-color:#d1d9e5}
       .rail.pos-top .notch,.rail.pos-bottom .notch{background-color:rgba(246,248,252,.8)}
+      .notch::after{color:rgba(32,41,57,.85)}
       .notch:hover{background-color:rgba(226,232,242,.95)}
+      .grip::before{color:rgba(52,64,82,.9)}
       .tip{background:#fff;border-color:#d1d9e5;color:#202939;box-shadow:0 4px 14px rgba(32,41,57,.18)}
       .search-wrap{border-top-color:#d1d9e5}
       .search{background:#fff;border-color:#d1d9e5;color:#202939}
@@ -230,7 +242,7 @@
   rail.append(list, searchWrap, grip, add);
   const notch = el('button', 'notch');
   notch.type = 'button';
-  notch.title = 'レールの開閉';
+  notch.title = 'レールを開く';
   notch.setAttribute('aria-label', 'レールの開閉');
   rail.appendChild(notch);
   const menu = el('div', 'menu');
@@ -445,6 +457,7 @@
     event.stopPropagation();
     if (state.pointerNear) { armed = false; setNear(false); }
     else { armed = true; setNear(true); }
+    notch.title = state.pointerNear ? 'レールを閉じる' : 'レールを開く';
   });
   document.documentElement.addEventListener('mouseleave', () => {
     clearTimeout(dwellTimer);
