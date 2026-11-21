@@ -79,7 +79,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .menu button.danger { color: #ff9f9f; }
 .menu .menu-separator { height: 1px; background: var(--outline); margin: 5px 4px; }
 .toast { position: fixed; z-index: 40; bottom: 42px; left: 12px; right: 12px; padding: 10px 12px; border-radius: 8px; background: #3b2740; color: #ffd6dc; border: 1px solid #ae6374; box-shadow: 0 6px 16px #0007; font-size: 12px; }
-@media (max-width: 300px) {
+@media (max-width: 400px) {
   .topbar { padding: 9px 10px 8px; }
   .brand { gap: 7px; }
   .app-icon { width: 22px; height: 22px; }
