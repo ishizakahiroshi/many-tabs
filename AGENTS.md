@@ -1,4 +1,4 @@
-# Agent Entry Point (right-tabs-local)
+# Agent Entry Point (many-tabs)
 
 このリポジトリの運用ガイダンスは `CLAUDE.md` を正本とする。
 

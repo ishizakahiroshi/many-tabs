@@ -12,6 +12,7 @@ const search = document.getElementById('tabSearch');
 const count = document.getElementById('tabCount');
 const menu = document.getElementById('menu');
 const toast = document.getElementById('toast');
+document.getElementById('appVersion').textContent = `v${chrome.runtime.getManifest().version}`;
 const NONE = chrome.tabGroups.TAB_GROUP_ID_NONE;
 const COLORS = {
   grey: '#9198a6', blue: '#63a5f7', red: '#f07474', yellow: '#e6bd60',
@@ -29,7 +30,7 @@ function node(tag, cls, content) {
   return el;
 }
 function onError(error) {
-  console.error('Right Tabs:', error);
+  console.error('Many Tabs:', error);
   toast.textContent = error?.message || '操作に失敗しました。';
   toast.hidden = false;
   clearTimeout(state.toastTimer);

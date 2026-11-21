@@ -2,7 +2,7 @@
 （言語・確認スタイル・出力フォーマット等）は各 AI ツールのグローバル設定へ。
 fresh public clone でも有効な内容に保つこと。 -->
 
-# Right Tabs Local 開発ガイド
+# Many Tabs 開発ガイド
 
 > **このファイルは索引であって本文ではない。** 全 AI セッションで全文がロードされるので、
 > ルールの本文はここへ書かず、破る人が必ず開く場所（コード・検査スクリプト・skill・guide・台帳）へ置き、
@@ -11,7 +11,7 @@ fresh public clone でも有効な内容に保つこと。 -->
 
 ## プロジェクト概要
 
-Chrome 拡張機能（Manifest V3）。右側に外部通信を一切行わないローカル専用のタブ一覧を表示する。表示は 2 系統: Chrome 標準のサイドパネル（機能フル）と、各ページ右端に重ねる最小表示のレール（rail.js・content script）。サイドパネルからタブの切替・閉じる・新規・検索・固定・グループ操作・D&D 並べ替えを行える。個人用の試作（v0.2.0）。公開可否は実機検証のあとに判断する（README「将来の一般公開について」参照）。
+Chrome 拡張機能（Manifest V3）。画面の辺に外部通信を一切行わないローカル専用のタブ一覧を表示する。表示は 2 系統: Chrome 標準のサイドパネル（機能フル）と、各ページの辺に重ねる最小表示のレール（rail.js・content script）。サイドパネルからタブの切替・閉じる・新規・検索・固定・グループ操作・D&D 並べ替えを行える。個人用の試作。公開可否は実機検証のあとに判断する（README「将来の一般公開について」参照）。
 
 ## やらないこと（スコープ外）
 
@@ -35,7 +35,7 @@ Chrome 拡張機能（Manifest V3）。右側に外部通信を一切行わな�
 ```
 manifest.json        MV3 マニフェスト（permissions: sidePanel / tabs / tabGroups / favicon + content_scripts 宣言）
 background.js        service worker（アイコン押下でサイドパネル・レールへの配信と操作中継）
-rail.js              右端レール（content script・closed Shadow DOM overlay）
+rail.js              画面の辺のレール（content script・closed Shadow DOM overlay）
 rail-config.js       レール畳み表示の既定モード（background.js が importScripts で読む）
 sidepanel.html / sidepanel.js / styles.css   サイドパネルの画面・タブ操作
 icons/               拡張機能アイコン（16/32/48/128）

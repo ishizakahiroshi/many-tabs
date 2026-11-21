@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Right Tabs Local",
-  "short_name": "Right Tabs",
-  "description": "右側に垂直タブを表示する、外部送信なしのローカル専用拡張機能。",
-  "version": "0.6.5",
+  "name": "Many Tabs",
+  "short_name": "Many Tabs",
+  "description": "画面の辺に垂直タブを表示する、外部送信なしのローカル専用拡張機能。",
+  "version": "0.7.1",
   "minimum_chrome_version": "116",
   "permissions": [
     "sidePanel",
@@ -12,7 +12,7 @@
     "favicon"
   ],
   "action": {
-    "default_title": "右側の垂直タブを開く",
+    "default_title": "タブ一覧を開く",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
