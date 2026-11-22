@@ -14,13 +14,16 @@ let sessionLang = null;
 function catalogText(cat, key, subs) {
   const e = cat && cat[key];
   if (!e || typeof e.message !== 'string') return null;
-  let s = e.message;
-  if (e.placeholders) for (const name of Object.keys(e.placeholders)) {
-    const c = /^\$(\d+)$/.exec(String(e.placeholders[name].content || ''));
-    const v = c ? String(subs[Number(c[1]) - 1] ?? '') : String(e.placeholders[name].content ?? '');
-    s = s.split('$' + name + '$').join(v);
-  }
-  return s;
+  // chrome.i18n と同じ規則: $name$ は大文字小文字を区別せず、$$ は $ 1 個
+  const ph = {};
+  if (e.placeholders) for (const name of Object.keys(e.placeholders)) ph[name.toLowerCase()] = e.placeholders[name];
+  return e.message.replace(/\$\$|\$([A-Za-z0-9_@]+)\$/g, (m, name) => {
+    if (name === undefined) return '$';
+    const p = ph[name.toLowerCase()];
+    if (!p) return m;
+    const c = /^\$(\d+)$/.exec(String(p.content || ''));
+    return c ? String(subs[Number(c[1]) - 1] ?? '') : String(p.content ?? '');
+  });
 }
 function _t(key, ...subs) {
   const s = catalogText(
