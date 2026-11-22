@@ -17,13 +17,16 @@
   function catalogText(cat, key, subs) {
     const e = cat && cat[key];
     if (!e || typeof e.message !== 'string') return null;
-    let s = e.message;
-    if (e.placeholders) for (const name of Object.keys(e.placeholders)) {
-      const c = /^\$(\d+)$/.exec(String(e.placeholders[name].content || ''));
-      const v = c ? String(subs[Number(c[1]) - 1] ?? '') : String(e.placeholders[name].content ?? '');
-      s = s.split('$' + name + '$').join(v);
-    }
-    return s;
+    // chrome.i18n と同じ規則: $name$ は大文字小文字を区別せず、$$ は $ 1 個
+    const ph = {};
+    if (e.placeholders) for (const name of Object.keys(e.placeholders)) ph[name.toLowerCase()] = e.placeholders[name];
+    return e.message.replace(/\$\$|\$([A-Za-z0-9_@]+)\$/g, (m, name) => {
+      if (name === undefined) return '$';
+      const p = ph[name.toLowerCase()];
+      if (!p) return m;
+      const c = /^\$(\d+)$/.exec(String(p.content || ''));
+      return c ? String(subs[Number(c[1]) - 1] ?? '') : String(p.content ?? '');
+    });
   }
   function _t(key, ...subs) {
     const s = catalogText(state.lang ? state.msgs : null, key, subs);
@@ -340,7 +343,8 @@
     span: null,  // {a,b} = 辺に沿った範囲（0〜1 の割合）。null = 全幅（既定）
     free: null,  // {x,y,o,s?} = 浮き配置（帯の中心と向き、任意で長さも 0〜1 割合）。null = 辺に吸着
     lang: null,  // null = ブラウザの言語に従う。切替時はセッション全体で共有
-    msgs: null   // lang 用の実行時カタログ（background から rail-init / broadcast で届く）
+    msgs: null,  // lang 用の実行時カタログ（background から rail-init / broadcast で届く）
+    appliedLang: undefined // 固定ラベルへ最後に反映した言語（undefined = 未反映）
   };
 
   const host = document.createElement('div');
@@ -442,6 +446,7 @@
   }
   // 言語切替: 開いているメニューを閉じ、固定ラベル・状態依存タイトル・一覧を新言語で作り直す
   function applyLang() {
+    state.appliedLang = state.lang;
     if (!menu.hidden) closeMenu();
     applyI18n();
     notch.title = state.pointerNear ? _t('railClose') : _t('railOpen');
@@ -1288,7 +1293,10 @@
     setPosition(state.defaultPosition);
     setAutoExpand(state.defaultAutoExpand);
     if (state.free) setFree(state.free); // 浮き配置なら pos-* を外して中心座標へ
-    applyLang(); // render を内包。注入直後にブラウザ言語で作った固定ラベルも言語設定へ合わせ直す
+    // 言語が変わったとき（と初回）だけ固定ラベルを張り直す。applyLang は開いているメニューを
+    // 閉じるので、タブ更新のたびに届くスナップショットでは呼ばず、一覧の再描画だけにする
+    if (state.appliedLang !== state.lang) applyLang();
+    else render();
   }
 
   searchInput.addEventListener('input', () => {
