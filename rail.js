@@ -483,6 +483,7 @@
     // 展開中は行内の × を使うので、畳み帯専用のタイトルカードは畳む
     if (open) hideTip();
     rail.classList.toggle('is-open', open);
+    notch.title = open ? _t('railClose') : _t('railOpen');
   }
 
   // 畳んだレールは pointer-events:none でページへクリックを通す
