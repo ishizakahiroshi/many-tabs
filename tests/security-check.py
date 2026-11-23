@@ -21,6 +21,9 @@ war = manifest['web_accessible_resources']
 assert len(war) == 1 and war[0]['resources'] == ['_favicon/*', 'search.html']
 # 静的 ID で公開すると、任意のページが _favicon を引いて閲覧履歴の有無を判別できるため、動的 ID に限る
 assert war[0].get('use_dynamic_url') is True
+# use_dynamic_url は Chrome 129 以前では無視され（守りが効かない）、130・131 は content script から
+# 動的 URL を読むときに拡張側の CSP で止められる不具合があった（132.0.6796.0 で修正）
+assert int(manifest['minimum_chrome_version'].split('.')[0]) >= 132
 csp = manifest['content_security_policy']['extension_pages']
 for directive in ("default-src 'none'", "connect-src 'none'", "img-src 'self'",
                   "object-src 'none'", "base-uri 'none'", "form-action 'none'"):

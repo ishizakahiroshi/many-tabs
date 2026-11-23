@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - CI（`secrets-scan.yml`）を Node 24・読み取り権限だけ・認証情報を残さない checkout に更新
 
 ### Changed
+- 対応する Chrome を 132 以上に引き上げ（`minimum_chrome_version`）。`use_dynamic_url` は Chrome 129 以前では無視されて履歴の探りを防げず、130・131 は content script から動的 URL を読むときに CSP で止められる不具合があったため（132 で修正）
 - タブ一覧の配信を、表示中のタブと各ウィンドウのアクティブタブだけに絞った。裏のタブのレールは、表示されたときに一覧を取り直す（タブが多いときの負荷を軽減）
 
 ### Fixed
