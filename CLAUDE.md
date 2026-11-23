@@ -38,6 +38,7 @@ background.js        service worker（アイコン押下でサイドパネル・
 rail.js              画面の辺のレール（content script・closed Shadow DOM overlay）
 rail-config.js       レール畳み表示の既定モード（background.js が importScripts で読む）
 sidepanel.html / sidepanel.js / styles.css   サイドパネルの画面・タブ操作
+search.html / search.js / search.css   レールの検索欄（rail.js が iframe で入れる拡張のページ）
 icons/               拡張機能アイコン（16/32/48/128）
 tests/               security-check.py（静的チェック）
 scripts/             secrets-scan.mjs / check-claude-md.mjs / install-hooks.*

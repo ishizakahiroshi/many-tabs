@@ -46,7 +46,7 @@ Chrome拡張機能（Manifest V3）。画面の辺にローカルで動くタブ
 
 - **外部通信禁止のCSP:** 拡張機能のページには `connect-src 'none'` を指定し、接続先をブロックしています。
 - **外部通信処理なし:** `fetch`、`XMLHttpRequest`、`WebSocket`、`sendBeacon`、外部SDK/CDN/広告・解析ライブラリは使用していません。
-- **ページへの描画について:** v0.2.0 から画面の辺のレールのため content scripts（`http`/`https`/`file`、トップフレームのみ）を宣言しています。レールは closed Shadow DOM でページのCSS・JSから隔離して描画し、ページ内容の読み取り・変更・外部送信は実装していません。タブ操作は送り元と同じウィンドウのタブに限定します。
+- **ページへの描画について:** v0.2.0 から画面の辺のレールのため content scripts（`http`/`https`/`file`、トップフレームのみ）を宣言しています。レールは closed Shadow DOM でページのCSS・JSから隔離して描画し、ページ内容の読み取り・変更・外部送信は実装していません。レールの検索欄は拡張側のページ（`search.html`）を iframe で入れており、打った文字は表示中のページのスクリプトから見えません。タブ操作は送り元と同じウィンドウのタブに限定します。
 - **閲覧情報を保存しません:** ブラウザ内ストレージ・localStorage・サーバーへのデータ保存を実装していません。
 - **取得する情報:** Chromeの `tabs` APIで、そのウィンドウのタブタイトル・URL・状態などを読み取ります。これらのデータは画面表示と検索にのみ利用します。
 - **サイトアイコン:** ページのURLはChrome内蔵 `_favicon` URLに渡してアイコンを表示します。サイトの外部アイコンURLを直接読み込みません。
@@ -84,6 +84,7 @@ Chrome拡張機能（Manifest V3）。画面の辺にローカルで動くタブ
 - `rail-config.js`: レール畳み表示の既定（`collapsedMode`: `translucent` / `slim` / `hidden`、`position`: `right` / `left` / `top` / `bottom`、`autoExpand`: `false` / `true`）とホスト名ごとの `overrides`（干渉するサイトだけ `hidden` 等にできる）
 - `sidepanel.html` / `styles.css`: サイドパネル画面
 - `sidepanel.js`: タブ操作・イベント・ローカルUI
+- `search.html` / `search.js` / `search.css`: レールの検索欄（レールに iframe で入れる拡張のページ）
 - `icons/*.png`: ローカルアイコン
 - `tests/security-check.py`: 禁止API・宣言の静的チェック
 

@@ -182,12 +182,10 @@
     .tip[hidden]{display:none}
     .search-wrap{display:none;padding:5px 6px;border-top:1px solid #313b4d}
     .rail.is-open .search-wrap{display:block}
-    .search{width:100%;box-sizing:border-box;height:24px;padding:0 8px;
-      border:1px solid #313b4d;border-radius:6px;background:#0f1420;color:inherit;
-      font:inherit;font-size:12px;outline:none}
-    .search:focus{border-color:#548cf8}
-    .search::placeholder{color:#8995a9}
-    .search::-webkit-search-cancel-button{cursor:pointer}
+    /* 検索欄は拡張のページ（search.html）の iframe。color-scheme を両方にして、
+       iframe の中の prefers-color-scheme をページの指定ではなく利用者の設定に合わせる */
+    .search-frame{display:block;width:100%;height:24px;border:0;padding:0;margin:0;
+      color-scheme:light dark}
     .list{flex:1;min-height:0;overflow-y:auto;padding:4px 0 8px;scrollbar-width:thin}
     .row{display:flex;align-items:center;height:30px;position:relative}
     .row:hover{background:#242e3e}
@@ -305,9 +303,6 @@
       .grip::before{color:rgba(52,64,82,.9)}
       .tip{background:#fff;border-color:#d1d9e5;color:#202939;box-shadow:0 4px 14px rgba(32,41,57,.18)}
       .search-wrap{border-top-color:#d1d9e5}
-      .search{background:#fff;border-color:#d1d9e5;color:#202939}
-      .search:focus{border-color:#3068c8}
-      .search::placeholder{color:#6b778b}
       .row:hover{background:#e2eaf5}
       .row.is-active{background:#dbe9ff}
       .is-active .title{color:#12325f}
@@ -370,14 +365,35 @@
   grip.dataset.i18nTitle = 'gripTitle';
   grip.dataset.label = _t('gripMove');
   grip.title = _t('gripTitle');
+  // 検索欄はページの中に入力欄を置かず、拡張のページ（search.html）を iframe で入れる。
+  // ページの中の入力欄だと、打った文字がページのスクリプトの capture リスナから見えるため。
+  // iframe は初めて展開したときに作る（開かないページで拡張のページを作らない）
   const searchWrap = el('div', 'search-wrap');
-  const searchInput = el('input', 'search');
-  searchInput.type = 'search';
-  searchInput.dataset.i18nPlaceholder = 'searchTabs';
-  searchInput.dataset.i18nAriaLabel = 'searchTabs';
-  searchInput.placeholder = _t('searchTabs');
-  searchInput.setAttribute('aria-label', _t('searchTabs'));
-  searchWrap.appendChild(searchInput);
+  let searchFrame = null;
+  let searchPort = null;
+  let searchQuery = '';
+  function ensureSearchFrame() {
+    if (searchFrame) return searchFrame;
+    searchFrame = el('iframe', 'search-frame');
+    searchFrame.dataset.i18nTitle = 'searchTabs';
+    searchFrame.title = _t('searchTabs');
+    searchFrame.src = chrome.runtime.getURL('search.html');
+    searchWrap.appendChild(searchFrame);
+    return searchFrame;
+  }
+  function sendSearchLabels() {
+    if (!searchPort) return;
+    try {
+      searchPort.postMessage({ type: 'labels', placeholder: _t('searchTabs'),
+        lang: state.lang || chrome.i18n.getUILanguage(), q: searchQuery });
+    } catch (_) { searchPort = null; }
+  }
+  function focusSearch() {
+    ensureSearchFrame().focus();
+    if (searchPort) {
+      try { searchPort.postMessage({ type: 'focus' }); } catch (_) { searchPort = null; }
+    }
+  }
   const list = el('div', 'list');
   const add = el('button', 'new-tab', '＋');
   add.type = 'button';
@@ -453,6 +469,7 @@
     capM.title = state.free ? _t('capMoveFree') : _t('capMove');
     capA.title = state.free ? _t('capLength') : _t('capStart');
     capB.title = state.free ? _t('capLength') : _t('capEnd');
+    sendSearchLabels();
     render();
   }
 
@@ -481,7 +498,7 @@
   function syncOpen() {
     const open = state.pointerNear || state.filter !== '' || !menu.hidden || Number.isInteger(state.draggedTabId);
     // 展開中は行内の × を使うので、畳み帯専用のタイトルカードは畳む
-    if (open) hideTip();
+    if (open) { hideTip(); ensureSearchFrame(); }
     rail.classList.toggle('is-open', open);
     notch.title = open ? _t('railClose') : _t('railOpen');
   }
@@ -1300,28 +1317,33 @@
     else render();
   }
 
-  searchInput.addEventListener('input', () => {
-    state.filter = searchInput.value.trim().toLowerCase();
-    syncOpen();
-    render();
-  });
-  searchInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      searchInput.value = '';
-      state.filter = '';
+  // 検索欄（search.html の iframe）からの接続。拡張の API なので、ページのスクリプトは
+  // 接続することも、流れる語を読むこともできない。作り直されたら新しい接続に替える
+  chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== 'many-tabs-search' || !searchFrame) return;
+    if (searchPort) { try { searchPort.disconnect(); } catch (_) { /* 切断済み */ } }
+    searchPort = port;
+    port.onDisconnect.addListener(() => { if (searchPort === port) searchPort = null; });
+    port.onMessage.addListener((message) => {
+      if (!message || message.type !== 'input' || typeof message.q !== 'string') return;
+      searchQuery = message.q;
+      state.filter = message.q.trim().toLowerCase();
       syncOpen();
       render();
-      searchInput.blur();
+      // Esc: 検索を解き、フォーカスを iframe からページへ返す
+      if (message.escape) searchFrame.blur();
+    });
+    sendSearchLabels();
+    if (document.activeElement === host && shadow.activeElement === searchFrame) {
+      try { port.postMessage({ type: 'focus' }); } catch (_) { /* 切断済み */ }
     }
-    // ページ側のキーボードショートカットに検索入力を取られないようにする
-    event.stopPropagation();
   });
   shadow.addEventListener('keydown', (event) => {
-    if (event.key === '/' && event.target !== searchInput && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey) {
       event.preventDefault();
       state.pointerNear = true;
       syncOpen();
-      searchInput.focus();
+      focusSearch();
     }
     if (event.key === 'Escape' && !menu.hidden) closeMenu();
   });

@@ -16,9 +16,9 @@ assert len(cs) == 1 and cs[0]['js'] == ['rail.js']
 assert cs[0]['run_at'] == 'document_idle' and cs[0]['all_frames'] is False
 assert 'css' not in cs[0]
 assert set(cs[0]['matches']) <= {'http://*/*', 'https://*/*', 'file:///*'}
-# ページから読み込める拡張リソースは内蔵 favicon エンドポイントだけ
+# ページから読み込める拡張リソースは、内蔵 favicon エンドポイントとレールの検索欄（search.html）だけ
 war = manifest['web_accessible_resources']
-assert len(war) == 1 and war[0]['resources'] == ['_favicon/*']
+assert len(war) == 1 and war[0]['resources'] == ['_favicon/*', 'search.html']
 # 静的 ID で公開すると、任意のページが _favicon を引いて閲覧履歴の有無を判別できるため、動的 ID に限る
 assert war[0].get('use_dynamic_url') is True
 csp = manifest['content_security_policy']['extension_pages']
@@ -27,7 +27,7 @@ for directive in ("default-src 'none'", "connect-src 'none'", "img-src 'self'",
     assert directive in csp, f'CSP missing: {directive}'
 assert manifest['side_panel']['default_path'] == 'sidepanel.html'
 assert manifest['background']['service_worker'] == 'background.js'
-files = ('sidepanel.js', 'background.js', 'rail.js', 'rail-config.js') + tuple(
+files = ('sidepanel.js', 'background.js', 'rail.js', 'rail-config.js', 'search.js') + tuple(
     str(p.relative_to(ROOT)).replace('\\', '/')
     for p in sorted((ROOT / 'i18n').glob('*.js')))
 source = '\n'.join((ROOT / file).read_text(encoding='utf-8') for file in files)
@@ -47,9 +47,16 @@ for pattern in [
     assert not re.search(pattern, source), f'Forbidden call: {pattern}'
 rail = (ROOT / 'rail.js').read_text(encoding='utf-8')
 assert 'attachShadow' in rail  # レールは Shadow DOM でページから隔離する
-html = (ROOT / 'sidepanel.html').read_text(encoding='utf-8')
-assert '<script src="sidepanel.js" defer>' in html
-assert 'https://' not in html and 'http://' not in html
-assert 'onerror=' not in html and 'onclick=' not in html
+# ページの中に入力欄を置くと、打った文字がページのスクリプトの capture リスナから見える。
+# 文字の入力は拡張のページ（search.html の iframe）だけで受ける
+assert not re.search(r'''(?:\bel|createElement)\(\s*['"`](?:input|textarea)['"`]''', rail), \
+    'rail.js must not create text inputs in the page; use the search.html iframe'
+assert 'contenteditable' not in rail.lower()
+assert "chrome.runtime.getURL('search.html')" in rail
+for page, script in (('sidepanel.html', 'sidepanel.js'), ('search.html', 'search.js')):
+    html = (ROOT / page).read_text(encoding='utf-8')
+    assert f'<script src="{script}" defer>' in html, page
+    assert 'https://' not in html and 'http://' not in html, page
+    assert 'onerror=' not in html and 'onclick=' not in html, page
 assert (ROOT / 'icons/icon128.png').exists()
 print('OK: Manifest V3, least-privilege set + rail overlay (isolated), no external-code, storage, or outbound network calls detected')

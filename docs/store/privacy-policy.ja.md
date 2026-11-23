@@ -17,6 +17,7 @@ Many Tabs はユーザーデータを**一切収集・送信・保存・共有�
 - コンテンツセキュリティポリシーは `connect-src 'none'` で、拡張ページからのあらゆる接続をブロックします
 - `chrome.storage` / `localStorage` / IndexedDB / Cookie を使用しません。設定はメモリのみで、Chrome 再起動時に消去されます
 - content script（`rail.js`）はページ本文を読み取らず・改変せず、自前の Shadow DOM overlay だけを描画します
+- レールの検索欄は拡張側のページ（`search.html`）を iframe で入れており、打った文字は表示中のページのスクリプトから見えません
 - 静的検査スクリプト（`tests/security-check.py`）で、禁止 API・権限セット・CSP・content_scripts 宣言が変更時に機械チェックされます
 
 ## 権限ごとの用途

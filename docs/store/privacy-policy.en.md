@@ -17,6 +17,7 @@ Many Tabs does **not** collect, transmit, store, or share any user data.
 - The Content Security Policy declares `connect-src 'none'`, blocking all connections from extension pages
 - `chrome.storage`, `localStorage`, IndexedDB, and cookies are not used. Settings live in memory only and are discarded when Chrome restarts
 - The content script (`rail.js`) does not read or modify page content; it only draws its own closed-Shadow-DOM overlay
+- The rail's search box is an extension page (`search.html`) embedded as an iframe, so what you type there is not visible to the page's scripts
 - A static inspection script (`tests/security-check.py`) mechanically checks forbidden APIs, the permission set, CSP, and the content_scripts declaration on every change
 
 ## Purpose of each permission

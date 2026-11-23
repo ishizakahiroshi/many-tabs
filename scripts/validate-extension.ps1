@@ -164,8 +164,8 @@ foreach ($match in @($contentScripts[0].matches)) {
 
 $wars = @($manifest.web_accessible_resources)
 $warRes = @($wars[0].resources)
-if ($wars.Count -ne 1 -or $warRes.Count -ne 1 -or $warRes[0] -ne '_favicon/*') {
-  Add-ValidationError "web_accessible_resources must expose only _favicon/*."
+if ($wars.Count -ne 1 -or $warRes.Count -ne 2 -or $warRes[0] -ne '_favicon/*' -or $warRes[1] -ne 'search.html' -or $wars[0].use_dynamic_url -ne $true) {
+  Add-ValidationError "web_accessible_resources must expose only _favicon/* and search.html, with use_dynamic_url."
 }
 if ($manifest.content_security_policy.extension_pages -notmatch "connect-src 'none'") {
   Add-ValidationError "CSP extension_pages must include connect-src 'none'."
@@ -180,6 +180,9 @@ $requiredFiles = [System.Collections.Generic.HashSet[string]]::new([System.Strin
   'sidepanel.html',
   'sidepanel.js',
   'styles.css',
+  'search.html',
+  'search.js',
+  'search.css',
   'README.md',
   'LICENSE',
   'CHANGELOG.md',
@@ -285,18 +288,22 @@ if(!c||JSON.stringify(c)!==JSON.stringify(mj)){console.error('MISMATCH');process
   }
 }
 
-$sidepanelHtml = Get-Content -Raw -LiteralPath (Join-Path $root 'sidepanel.html')
-if ($sidepanelHtml -match '(?is)<script(?![^>]*\bsrc=)[^>]*>') {
-  Add-ValidationError 'sidepanel.html must not contain inline scripts.'
-}
-if ($sidepanelHtml -match '(?is)\son[a-z]+\s*=') {
-  Add-ValidationError 'sidepanel.html must not contain inline event handlers.'
-}
-if ($sidepanelHtml -match '(?is)<(?:script|link|img|iframe|object|embed)[^>]+(?:src|href)\s*=\s*["'']https?://') {
-  Add-ValidationError 'sidepanel.html must not load remote resources.'
-}
-if ($sidepanelHtml -notmatch '<script[^>]+src="sidepanel\.js"') {
-  Add-ValidationError 'sidepanel.html must load sidepanel.js.'
+# 拡張のページ（サイドパネルと、レールの検索欄の iframe）は同じ条件で検査する
+foreach ($pagePair in @(@('sidepanel.html', 'sidepanel.js'), @('search.html', 'search.js'))) {
+  $pageName, $scriptName = $pagePair
+  $pageHtml = Get-Content -Raw -LiteralPath (Join-Path $root $pageName)
+  if ($pageHtml -match '(?is)<script(?![^>]*\bsrc=)[^>]*>') {
+    Add-ValidationError "$pageName must not contain inline scripts."
+  }
+  if ($pageHtml -match '(?is)\son[a-z]+\s*=') {
+    Add-ValidationError "$pageName must not contain inline event handlers."
+  }
+  if ($pageHtml -match '(?is)<(?:script|link|img|iframe|object|embed)[^>]+(?:src|href)\s*=\s*["'']https?://') {
+    Add-ValidationError "$pageName must not load remote resources."
+  }
+  if ($pageHtml -notmatch "<script[^>]+src=`"$([regex]::Escape($scriptName))`"") {
+    Add-ValidationError "$pageName must load $scriptName."
+  }
 }
 
 $changelog = Get-Content -Raw -LiteralPath (Join-Path $root 'CHANGELOG.md')
@@ -305,7 +312,7 @@ if (-not $changelog.Contains($versionHeading) -and $changelog -notmatch '(?m)^##
   Add-ValidationError "CHANGELOG.md must contain $versionHeading or an Unreleased section."
 }
 
-$jsFiles = @('background.js', 'rail.js', 'rail-config.js', 'sidepanel.js')
+$jsFiles = @('background.js', 'rail.js', 'rail-config.js', 'sidepanel.js', 'search.js')
 $i18nDirPath = Join-Path $root 'i18n'
 if (Test-Path -LiteralPath $i18nDirPath -PathType Container) {
   $jsFiles += Get-ChildItem -LiteralPath $i18nDirPath -Filter '*.js' | ForEach-Object { "i18n/$($_.Name)" }
