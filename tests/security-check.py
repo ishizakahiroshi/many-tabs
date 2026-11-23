@@ -19,8 +19,12 @@ assert set(cs[0]['matches']) <= {'http://*/*', 'https://*/*', 'file:///*'}
 # ページから読み込める拡張リソースは内蔵 favicon エンドポイントだけ
 war = manifest['web_accessible_resources']
 assert len(war) == 1 and war[0]['resources'] == ['_favicon/*']
-assert "connect-src 'none'" in manifest['content_security_policy']['extension_pages']
-assert "img-src 'self'" in manifest['content_security_policy']['extension_pages']
+# 静的 ID で公開すると、任意のページが _favicon を引いて閲覧履歴の有無を判別できるため、動的 ID に限る
+assert war[0].get('use_dynamic_url') is True
+csp = manifest['content_security_policy']['extension_pages']
+for directive in ("default-src 'none'", "connect-src 'none'", "img-src 'self'",
+                  "object-src 'none'", "base-uri 'none'", "form-action 'none'"):
+    assert directive in csp, f'CSP missing: {directive}'
 assert manifest['side_panel']['default_path'] == 'sidepanel.html'
 assert manifest['background']['service_worker'] == 'background.js'
 files = ('sidepanel.js', 'background.js', 'rail.js', 'rail-config.js') + tuple(
@@ -28,9 +32,18 @@ files = ('sidepanel.js', 'background.js', 'rail.js', 'rail-config.js') + tuple(
     for p in sorted((ROOT / 'i18n').glob('*.js')))
 source = '\n'.join((ROOT / file).read_text(encoding='utf-8') for file in files)
 # Comments/documentation may mention these APIs; inspect call expressions only.
-for pattern in [r'\bfetch\s*\(', r'\bXMLHttpRequest\s*\(', r'\bWebSocket\s*\(',
-                r'\bsendBeacon\s*\(', r'\bchrome\.scripting\b', r'\beval\s*\(',
-                r'\binnerHTML\s*=', r'\bchrome\.storage\b', r'\blocalStorage\s*\.']:
+for pattern in [
+        # 通信（content script の rail.js は拡張の CSP の外で動くので、コードの側で止める）
+        r'\bfetch\s*\(', r'\bXMLHttpRequest\s*\(', r'\bWebSocket\s*\(', r'\bsendBeacon\s*\(',
+        r'\bEventSource\s*\(', r'\bRTCPeerConnection\b', r'\bWebTransport\b',
+        r'''['"`]https?://''',
+        # 保存（プライバシーポリシーで「使わない」と書いているもの）
+        r'\bchrome\.storage\b', r'\blocalStorage\s*\.', r'\bsessionStorage\b', r'\bindexedDB\b',
+        r'\bcaches\s*\.', r'\bdocument\.cookie\b', r'\bopenDatabase\s*\(',
+        # 文字列からのコード実行・HTML の流し込み
+        r'\bchrome\.scripting\b', r'\beval\s*\(', r'\bnew\s+Function\b',
+        r'''\bset(?:Timeout|Interval)\s*\(\s*['"`]''',
+        r'\binnerHTML\s*=', r'\bouterHTML\s*=', r'\binsertAdjacentHTML\b']:
     assert not re.search(pattern, source), f'Forbidden call: {pattern}'
 rail = (ROOT / 'rail.js').read_text(encoding='utf-8')
 assert 'attachShadow' in rail  # レールは Shadow DOM でページから隔離する
@@ -39,4 +52,4 @@ assert '<script src="sidepanel.js" defer>' in html
 assert 'https://' not in html and 'http://' not in html
 assert 'onerror=' not in html and 'onclick=' not in html
 assert (ROOT / 'icons/icon128.png').exists()
-print('OK: Manifest V3, least-privilege set + rail overlay (isolated), no external-code or outbound network calls detected')
+print('OK: Manifest V3, least-privilege set + rail overlay (isolated), no external-code, storage, or outbound network calls detected')

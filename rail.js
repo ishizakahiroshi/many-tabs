@@ -1372,8 +1372,19 @@
       applyLang();
     }
   });
-  chrome.runtime.sendMessage({ type: 'rail-init' }, (resp) => {
-    if (chrome.runtime.lastError || !resp) return;
-    accept(resp);
+  // 一覧は表示中のタブにだけ届く（background の pushToWindow）。裏にある間に変わった分は、
+  // 表示されたときに取り直す。表示中かどうかも併せて伝え、background の送り先を決めさせる
+  function requestSnapshot() {
+    try {
+      chrome.runtime.sendMessage({ type: 'rail-init', visible: document.visibilityState === 'visible' }, (resp) => {
+        if (chrome.runtime.lastError || !resp) return;
+        accept(resp);
+      });
+    } catch (_) { /* 拡張の更新で切り離された古いスクリプト */ }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') requestSnapshot();
+    else send({ type: 'rail-hidden' });
   });
+  requestSnapshot();
 })();

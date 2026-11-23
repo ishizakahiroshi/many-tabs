@@ -313,6 +313,20 @@ if (Test-Path -LiteralPath $i18nDirPath -PathType Container) {
 Test-JavaScriptSyntax $jsFiles
 Test-PowerShellSyntax @('scripts/package-webstore.ps1', 'scripts/validate-extension.ps1')
 
+# tests/security-check.py（禁止 API・権限・CSP・content_scripts 宣言の静的検査）。
+# プライバシーポリシーで「変更時に機械チェック」と書いている検査なので、Python が無ければ通さない
+$python = @('python', 'python3', 'py') |
+  ForEach-Object { Get-Command $_ -CommandType Application -ErrorAction SilentlyContinue } |
+  Select-Object -First 1
+if (-not $python) {
+  Add-ValidationError 'Python was not found; tests/security-check.py must run before packaging.'
+} else {
+  $securityOut = & $python.Source (Join-Path $root 'tests/security-check.py') 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    Add-ValidationError "tests/security-check.py failed`n$securityOut"
+  }
+}
+
 if ($errors.Count -gt 0) {
   $errors | ForEach-Object { Write-Host "ERROR: $_" -ForegroundColor Red }
   exit 1

@@ -77,6 +77,10 @@ function _t(key, ...subs) {
   return chrome.i18n.getMessage(key, subs.map(String)) || key;
 }
 
+// レールから届く表示モード・位置の許可リスト（rail.js の setMode / setPosition と同じ値）
+const RAIL_MODES = new Set(['translucent', 'slim', 'hidden']);
+const RAIL_POSITIONS = new Set(['right', 'left', 'top', 'bottom']);
+
 // {a,b}（0<=a<b<=1）か null 以外（壊れた値）は undefined を返す
 function validSpan(v) {
   if (v === null || v === undefined) return null;
@@ -149,9 +153,17 @@ async function snapshot(windowId) {
   };
 }
 
+// レールが「表示中」と知らせてきたタブ（メモリのみ）。一覧の配信は表示中のタブと各ウィンドウの
+// アクティブタブだけにする。裏のタブへ毎回全一覧を送って描き直すと、タブ数 N に対して
+// 1 回の更新が N 通 × N 行になるため。裏のタブのレールは表示されたときに rail-init で取り直す。
+// アクティブタブも送り先に含めるのは、service worker の再起動でこの集合が空になっても
+// 見えている画面を更新し続けるため
+const visibleTabs = new Set();
+
 async function pushToWindow(windowId) {
   const base = await snapshot(windowId);
-  await Promise.all(base.tabs.map(t =>
+  const targets = base.tabs.filter(t => t.active || visibleTabs.has(t.id));
+  await Promise.all(targets.map(t =>
     chrome.tabs.sendMessage(t.id, { ...base, tabPref: railPrefs.get(t.id) || null }).catch(() => {})
   ));
 }
@@ -159,6 +171,7 @@ async function pushToWindow(windowId) {
 chrome.tabs.onCreated.addListener(tab => schedulePush(tab.windowId));
 chrome.tabs.onRemoved.addListener((id, info) => {
   railPrefs.delete(id);
+  visibleTabs.delete(id);
   schedulePush(info.windowId);
 });
 chrome.tabs.onUpdated.addListener((id, info, tab) => schedulePush(tab.windowId));
@@ -189,7 +202,13 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   }
   const win = sender && sender.tab && sender.tab.windowId;
   if (!Number.isInteger(win) || !msg || typeof msg.type !== 'string') return false;
+  if (msg.type === 'rail-hidden') {
+    visibleTabs.delete(sender.tab.id);
+    return false;
+  }
   if (msg.type === 'rail-init') {
+    if (msg.visible === true) visibleTabs.add(sender.tab.id);
+    else visibleTabs.delete(sender.tab.id);
     snapshot(win).then(data => {
       data.tabPref = railPrefs.get(sender.tab.id) || null;
       respond(data);
@@ -198,10 +217,11 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   }
   if (msg.type === 'rail-pref') {
     // モードはタブ単位、位置はセッション全体で記憶する（メモリのみ・ストレージ不使用）
+    // 値は rail.js の setMode / setPosition と同じ許可リストで受け、それ以外は保存も配信もしない
     const pref = railPrefs.get(sender.tab.id) || {};
-    if (typeof msg.mode === 'string') pref.mode = msg.mode;
+    if (RAIL_MODES.has(msg.mode)) pref.mode = msg.mode;
     railPrefs.set(sender.tab.id, pref);
-    if (typeof msg.position === 'string' && msg.position !== SESSION_POSITION) {
+    if (RAIL_POSITIONS.has(msg.position) && msg.position !== SESSION_POSITION) {
       SESSION_POSITION = msg.position;
       broadcast({ type: 'rail-pref-position', position: SESSION_POSITION });
     }

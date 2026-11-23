@@ -33,7 +33,8 @@
   "web_accessible_resources": [
     {
       "resources": ["_favicon/*"],
-      "matches": ["<all_urls>"]
+      "matches": ["<all_urls>"],
+      "use_dynamic_url": true
     }
   ],
   "background": {
@@ -46,6 +47,6 @@
     "128": "icons/icon128.png"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'none'; img-src 'self' data:; style-src 'self';"
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';"
   }
 }

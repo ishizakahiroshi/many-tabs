@@ -42,7 +42,7 @@ icons/               拡張機能アイコン（16/32/48/128）
 tests/               security-check.py（静的チェック）
 scripts/             secrets-scan.mjs / check-claude-md.mjs / install-hooks.*
 .githooks/           pre-commit（layer 2・doxguard opt-in）
-.github/workflows/   secrets-scan.yml（layer 3・CI バックストップ）
+.github/workflows/   secrets-scan.yml（layer 3・CI バックストップ）/ security-check.yml（tests/security-check.py を CI で実行）
 docs/local/          ローカル作業ノート（gitignore・Drive 同期領域への junction）
 docs/obsidian/       Obsidian 連携入口（gitignore・junction）
 ```

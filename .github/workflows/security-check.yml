@@ -1,0 +1,35 @@
+name: security-check
+
+# Runs tests/security-check.py on every change: forbidden APIs (network, storage,
+# string-to-code), the permission set, web_accessible_resources, CSP, and the
+# content_scripts declaration. docs/store/privacy-policy.*.md states that these are
+# mechanically checked on every change; this workflow is that check on the server side.
+# The same script also runs locally through scripts/validate-extension.ps1.
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'hotfix/**'
+      - 'release/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: static security check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Run tests/security-check.py
+        run: python3 tests/security-check.py .

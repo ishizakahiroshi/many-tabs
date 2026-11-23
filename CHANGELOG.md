@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+- `_favicon` の公開を動的 ID に限定（`use_dynamic_url`）。静的 ID のままだと、任意のページが `_favicon` を引いて、特定の URL を閲覧したことがあるかを判別できた
+- サイドパネルの CSP を `default-src 'none'` を基準に締めた（`object-src` / `base-uri` / `form-action` も `'none'`）
+- レールから届く表示モード・位置を、background 側でも許可した値だけ受け付ける
+- 脆弱性の非公開の報告先として `SECURITY.md` を追加
+- `tests/security-check.py` を CI（`security-check.yml`）と `scripts/validate-extension.ps1` から自動実行し、保存系（sessionStorage・IndexedDB・Cookie など）・通信系・文字列からのコード実行の禁止を追加
+- CI（`secrets-scan.yml`）を Node 24・読み取り権限だけ・認証情報を残さない checkout に更新
+
+### Changed
+- タブ一覧の配信を、表示中のタブと各ウィンドウのアクティブタブだけに絞った。裏のタブのレールは、表示されたときに一覧を取り直す（タブが多いときの負荷を軽減）
+
 ### Fixed
 - 言語切替時、プレースホルダ付きの文言（`$TITLE$` など）が置換されず、そのまま表示されていた（実行時カタログの置換を chrome.i18n と同じく大文字小文字を区別しない規則に統一）
 - レールの設定メニュー・行メニューを開いている間に、タブの更新が届くとメニューが勝手に閉じていた（言語の張り直しを言語が変わったときだけにした）

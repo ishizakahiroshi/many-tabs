@@ -1,6 +1,6 @@
 # Privacy Policy (English, for submission) — Many Tabs
 
-Last updated: 2026-11-21
+Last updated: 2026-11-23
 
 ## Data use declaration
 
@@ -29,6 +29,6 @@ Many Tabs does **not** collect, transmit, store, or share any user data.
 
 ## Contact
 
-Please use Issues on the public repository.
+Please use Issues on the public repository. For security issues (vulnerabilities), please report privately as described in the repository's `SECURITY.md` instead of opening a public Issue.
 
 ※ Identical in content to the English section of `PRIVACY.md` in the repository.
