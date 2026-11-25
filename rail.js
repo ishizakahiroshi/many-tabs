@@ -37,6 +37,13 @@
     grey: '#9198a6', blue: '#63a5f7', red: '#f07474', yellow: '#e6bd60',
     green: '#65c998', pink: '#e48fca', purple: '#ac91e7', cyan: '#6ccfd9', orange: '#eda56c'
   };
+  // タグの色はタグの文字列から決める（サイドパネルと同じ規則）
+  const TAG_COLORS = Object.values(COLORS).slice(1);
+  function tagColor(tag) {
+    let h = 0;
+    for (const ch of tag) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+    return TAG_COLORS[h % TAG_COLORS.length];
+  }
 
   const CSS = `
     .rail{position:absolute;top:0;right:0;height:100%;width:44px;box-sizing:border-box;
@@ -204,6 +211,8 @@
     .title{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
       font-size:12px;line-height:1.2}
     .is-active .title{font-weight:650;color:#fff}
+    .tag{font-weight:650}
+    .row.is-tagging{outline:1px solid #548cf8;outline-offset:-1px}
     .ind{flex:0 0 auto;color:#8995a9;font-size:11px;padding:0 2px}
     .more,.close{flex:0 0 auto;width:20px;height:24px;display:grid;place-items:center;border:0;
       background:none;color:#8995a9;font-size:14px;cursor:pointer;opacity:0;border-radius:5px}
@@ -339,8 +348,27 @@
     free: null,  // {x,y,o,s?} = 浮き配置（帯の中心と向き、任意で長さも 0〜1 割合）。null = 辺に吸着
     lang: null,  // null = ブラウザの言語に従う。切替時はセッション全体で共有
     msgs: null,  // lang 用の実行時カタログ（background から rail-init / broadcast で届く）
-    appliedLang: undefined // 固定ラベルへ最後に反映した言語（undefined = 未反映）
+    appliedLang: undefined, // 固定ラベルへ最後に反映した言語（undefined = 未反映）
+    // 手入力タグ（このウィンドウの分・background の写し・メモリのみ）。tagCopy は
+    // background が起動し直したときに返す。tagEditId はタグを入力中のタブ
+    tags: new Map(), tagCopy: null, tagEditId: null
   };
+  function tagOf(tab) { return state.tags.get(tab.id) || ''; }
+  function labelOf(tab) {
+    const tag = tagOf(tab);
+    const title = tab.title || _t('untitledTab');
+    return tag ? `[${tag}] ${title}` : title;
+  }
+  function acceptTags(copy) {
+    if (!copy || typeof copy !== 'object' || !copy.tags || typeof copy.tags !== 'object' ||
+      !Array.isArray(copy.covers) || !Number.isFinite(copy.rev)) return;
+    // 古い版では上書きしない（background が起動し直して写しを回収できなかった場合に備える）
+    if (state.tagCopy && copy.rev < state.tagCopy.rev) return;
+    state.tagCopy = { rev: copy.rev, tags: { ...copy.tags }, covers: copy.covers.slice() };
+    state.tags = new Map(Object.entries(copy.tags)
+      .filter(([, v]) => typeof v === 'string' && v)
+      .map(([k, v]) => [Number(k), v]));
+  }
 
   const host = document.createElement('div');
   host.id = HOST_ID;
@@ -393,6 +421,32 @@
     if (searchPort) {
       try { searchPort.postMessage({ type: 'focus' }); } catch (_) { searchPort = null; }
     }
+  }
+  // ▶ tags: タグの入力も、ページの中に入力欄を置かず検索欄の iframe を入力モードに切り替えて受ける
+  // （打った文字がページのスクリプトから見えないようにするため）
+  function sendTagEdit() {
+    if (!searchPort || !Number.isInteger(state.tagEditId)) return;
+    const tab = state.tabs.find(t => t.id === state.tagEditId);
+    try {
+      searchPort.postMessage({ type: 'tag-edit', value: tab ? tagOf(tab) : '',
+        placeholder: _t('tagPlaceholder'), label: _t('editTag') });
+    } catch (_) { searchPort = null; }
+  }
+  function startTagEdit(tab) {
+    state.tagEditId = tab.id;
+    syncOpen();
+    render();
+    sendTagEdit();
+    focusSearch();
+  }
+  function endTagEdit(notifyFrame) {
+    if (!Number.isInteger(state.tagEditId)) return;
+    state.tagEditId = null;
+    if (notifyFrame && searchPort) {
+      try { searchPort.postMessage({ type: 'tag-end' }); } catch (_) { searchPort = null; }
+    }
+    syncOpen();
+    render();
   }
   const list = el('div', 'list');
   const add = el('button', 'new-tab', '＋');
@@ -496,7 +550,8 @@
   // メニュー表示中・検索語の入力中・ドラッグ中は、カーソルが外れても
   // レールを展開したままにする（操作中に 44px へ畳まれると行き先を失うため）。
   function syncOpen() {
-    const open = state.pointerNear || state.filter !== '' || !menu.hidden || Number.isInteger(state.draggedTabId);
+    const open = state.pointerNear || state.filter !== '' || !menu.hidden ||
+      Number.isInteger(state.draggedTabId) || Number.isInteger(state.tagEditId);
     // 展開中は行内の × を使うので、畳み帯専用のタイトルカードは畳む
     if (open) { hideTip(); ensureSearchFrame(); }
     rail.classList.toggle('is-open', open);
@@ -663,7 +718,7 @@
     const tabId = r && r.dataset ? Number(r.dataset.tabId) : NaN;
     if (!Number.isInteger(tabId)) { hideTip(); return; }
     state.tipTabId = tabId;
-    tip.textContent = r.title;
+    tip.textContent = r.title; // タグ付きの表示名（row() で付ける）
     tip.hidden = false;
     const b = r.getBoundingClientRect();
     const tw = tip.offsetWidth;
@@ -1011,6 +1066,7 @@
     item(tab.muted ? _t('unmuteTab') : _t('muteTab'),
       () => send({ type: 'rail-mute', tabId: tab.id, muted: !tab.muted }));
     item(_t('duplicateTab'), () => send({ type: 'rail-duplicate', tabId: tab.id }));
+    item(_t('editTag'), () => startTagEdit(tab));
     if (!tab.pinned) {
       if (tab.groupId !== NONE) {
         item(_t('removeFromGroup'), () => send({ type: 'rail-ungroup', tabId: tab.id }));
@@ -1129,8 +1185,9 @@
   }
 
   function row(tab) {
-    const r = el('div', 'row' + (tab.active ? ' is-active' : ''));
-    r.title = tab.title || _t('untitledTab');
+    const r = el('div', 'row' + (tab.active ? ' is-active' : '') +
+      (tab.id === state.tagEditId ? ' is-tagging' : ''));
+    r.title = labelOf(tab);
     r.dataset.tabId = String(tab.id);
     r.draggable = true;
     const main = el('button', 'main');
@@ -1156,7 +1213,15 @@
       dot.style.background = COLORS[g.color] || COLORS.grey;
       main.appendChild(dot);
     }
-    main.appendChild(el('span', 'title', tab.title || (tab.url ? _t('loading') : _t('newTab'))));
+    const title = el('span', 'title');
+    const tag = tagOf(tab);
+    if (tag) {
+      const badge = el('span', 'tag', `[${tag}]`);
+      badge.style.color = tagColor(tag);
+      title.append(badge, ' ');
+    }
+    title.append(tab.title || (tab.url ? _t('loading') : _t('newTab')));
+    main.appendChild(title);
     main.addEventListener('click', () => send({ type: 'rail-activate', tabId: tab.id }));
     r.appendChild(main);
     if (tab.pinned) r.appendChild(el('span', 'ind', '●'));
@@ -1229,8 +1294,9 @@
   }
 
   function matches(tab) {
+    const tag = tagOf(tab);
     return !state.filter ||
-      `${tab.title || ''}\n${tab.url || ''}`.toLowerCase().includes(state.filter);
+      `${tag ? `[${tag}]\n` : ''}${tab.title || ''}\n${tab.url || ''}`.toLowerCase().includes(state.filter);
   }
   function render() {
     if (Number.isInteger(state.draggedTabId)) { state.renderDeferred = true; return; }
@@ -1254,7 +1320,7 @@
     // 対象が閉じられて無くなったときだけ畳む
     if (Number.isInteger(state.tipTabId)) {
       const t = state.tabs.find(t2 => t2.id === state.tipTabId);
-      if (t) tip.textContent = t.title || _t('untitledTab');
+      if (t) tip.textContent = labelOf(t);
       else hideTip();
     }
   }
@@ -1272,6 +1338,11 @@
   function accept(data) {
     state.tabs = data.tabs || [];
     state.groups = new Map((data.groups || []).map(g => [g.id, g]));
+    acceptTags(data.tags);
+    // タグを入力中のタブが閉じられたら入力モードを解く
+    if (Number.isInteger(state.tagEditId) && !state.tabs.some(t => t.id === state.tagEditId)) {
+      endTagEdit(true);
+    }
     if (typeof data.mode === 'string') state.defaultMode = data.mode;
     if (typeof data.position === 'string') state.defaultPosition = data.position;
     if (typeof data.autoExpand === 'boolean') state.defaultAutoExpand = data.autoExpand;
@@ -1325,7 +1396,20 @@
     searchPort = port;
     port.onDisconnect.addListener(() => { if (searchPort === port) searchPort = null; });
     port.onMessage.addListener((message) => {
-      if (!message || message.type !== 'input' || typeof message.q !== 'string') return;
+      if (!message || typeof message !== 'object') return;
+      // タグの入力モード: 確定（Enter）か取りやめ（Esc・フォーカスが外れた）
+      if (message.type === 'tag-commit' && typeof message.value === 'string') {
+        const tabId = state.tagEditId;
+        if (Number.isInteger(tabId)) send({ type: 'rail-tag', tabId, tag: message.value });
+        endTagEdit(false);
+        searchFrame.blur();
+        return;
+      }
+      if (message.type === 'tag-cancel') {
+        endTagEdit(false);
+        return;
+      }
+      if (message.type !== 'input' || typeof message.q !== 'string') return;
       searchQuery = message.q;
       state.filter = message.q.trim().toLowerCase();
       syncOpen();
@@ -1334,7 +1418,9 @@
       if (message.escape) searchFrame.blur();
     });
     sendSearchLabels();
-    if (document.activeElement === host && shadow.activeElement === searchFrame) {
+    sendTagEdit();
+    if (Number.isInteger(state.tagEditId) ||
+      (document.activeElement === host && shadow.activeElement === searchFrame)) {
       try { port.postMessage({ type: 'focus' }); } catch (_) { /* 切断済み */ }
     }
   });
@@ -1358,6 +1444,12 @@
   rail.addEventListener('contextmenu', (event) => {
     event.preventDefault();
     openModeMenu({ x: event.clientX, y: event.clientY });
+  });
+  // background が起動し直したときに、手元のタグの写しを返す（タグを戻すため）
+  chrome.runtime.onMessage.addListener((msg, sender, respond) => {
+    if (!msg || msg.type !== 'tags-collect' || sender.id !== chrome.runtime.id || sender.tab) return false;
+    if (state.tagCopy) respond(state.tagCopy);
+    return false;
   });
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'rail-tabs' && Array.isArray(msg.tabs)) accept(msg);

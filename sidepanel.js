@@ -80,8 +80,31 @@ const COLORS = {
 };
 const state = {
   windowId: null, tabs: [], groups: new Map(), renderPending: false, draggedTabId: null, toastTimer: null,
-  pointerHeldAt: 0, renderDeferred: false, menuTabId: null, lastActiveId: null
+  pointerHeldAt: 0, renderDeferred: false, menuTabId: null, lastActiveId: null,
+  // 手入力タグ（background の写し・メモリのみ）。tagCopy は background が起動し直したときに返す
+  tags: new Map(), tagCopy: null
 };
+// タグの色はタグの文字列から決める（同じタグは同じ色）
+const TAG_COLORS = Object.values(COLORS).slice(1);
+function tagColor(tag) {
+  let h = 0;
+  for (const ch of tag) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return TAG_COLORS[h % TAG_COLORS.length];
+}
+function tagOf(tab) { return state.tags.get(tab.id) || ''; }
+function acceptTags(copy) {
+  if (!copy || typeof copy !== 'object' || !copy.tags || typeof copy.tags !== 'object' ||
+    !Array.isArray(copy.covers) || !Number.isFinite(copy.rev)) return;
+  if (state.tagCopy && copy.rev < state.tagCopy.rev) return;
+  state.tagCopy = { rev: copy.rev, tags: { ...copy.tags }, covers: copy.covers.slice() };
+  state.tags = new Map(Object.entries(copy.tags)
+    .filter(([, v]) => typeof v === 'string' && v)
+    .map(([k, v]) => [Number(k), v]));
+}
+function searchText(tab) {
+  const tag = tagOf(tab);
+  return `${tag ? `[${tag}]\n` : ''}${tab.title || ''}\n${tab.url || ''}`.toLocaleLowerCase();
+}
 
 function node(tag, cls, content) {
   const el = document.createElement(tag);
@@ -218,7 +241,17 @@ function tabRow(tab) {
     main.append(node('span', 'tab-fallback', '◇'));
   }
   const textWrap = node('span', 'tab-text');
-  textWrap.append(node('span', 'tab-title', tab.title || (tab.url ? _t('loading') : _t('newTab'))));
+  const titleLine = node('span', 'tab-title');
+  const tag = tagOf(tab);
+  if (tag) {
+    const badge = node('span', 'tab-tag', `[${tag}]`);
+    badge.style.setProperty('--tag-color', tagColor(tag));
+    titleLine.append(badge, ' ');
+    row.title = `[${tag}] ${row.title}`;
+    main.title = row.title;
+  }
+  titleLine.append(tab.title || (tab.url ? _t('loading') : _t('newTab')));
+  textWrap.append(titleLine);
   textWrap.append(node('span', 'tab-domain', domainFromUrl(tab.url)));
   main.append(textWrap);
   main.addEventListener('click', () => action(() => chrome.tabs.update(tab.id, { active: true })));
@@ -301,7 +334,7 @@ function tabRow(tab) {
 function appendTabRows(container, tabs) {
   const filter = search.value.trim().toLocaleLowerCase();
   for (const tab of tabs) {
-    if (!filter || `${tab.title || ''}\n${tab.url || ''}`.toLocaleLowerCase().includes(filter)) {
+    if (!filter || searchText(tab).includes(filter)) {
       container.append(tabRow(tab));
     }
   }
@@ -312,7 +345,7 @@ function render() {
   // メニューは、対象のタブが無くなったときだけ閉じる（ほかのタブの表示が変わっただけでは閉じない）。
   if (!menu.hidden && typeof state.menuTabId === 'number' && !state.tabs.some(t => t.id === state.menuTabId)) closeMenu();
   const filter = search.value.trim().toLocaleLowerCase();
-  const matching = tab => !filter || `${tab.title || ''}\n${tab.url || ''}`.toLocaleLowerCase().includes(filter);
+  const matching = tab => !filter || searchText(tab).includes(filter);
   const matches = state.tabs.filter(matching);
   count.textContent = filter ? _t('searchResultCount', matches.length, state.tabs.length) : _t('tabCount', state.tabs.length);
   const out = document.createDocumentFragment();
@@ -377,6 +410,11 @@ function openMenu(tab, anchor) {
   addMenuItem(tab.pinned ? _t('unpinTab') : _t('pinTab'), () => chrome.tabs.update(tab.id, { pinned: !tab.pinned }));
   addMenuItem(tab.mutedInfo?.muted ? _t('unmuteTab') : _t('muteTab'), () => chrome.tabs.update(tab.id, { muted: !tab.mutedInfo?.muted }));
   addMenuItem(_t('duplicateTab'), () => chrome.tabs.duplicate(tab.id));
+  const tagButton = node('button', '', _t('editTag'));
+  tagButton.type = 'button';
+  tagButton.setAttribute('role', 'menuitem');
+  tagButton.addEventListener('click', () => openTagEditor(tab, anchor));
+  menu.append(tagButton);
   if (!tab.pinned) {
     if (tab.groupId !== NONE) {
       addMenuItem(_t('removeFromGroup'), () => chrome.tabs.ungroup([tab.id]));
@@ -402,6 +440,46 @@ function openMenu(tab, anchor) {
   const preferred = anchor.bottom + 4;
   menu.style.top = `${Math.max(8, Math.min(preferred, window.innerHeight - height - 8))}px`;
   menu.querySelector('button')?.focus();
+}
+// タグの入力欄（メニューの中身を入れ替えて出す。一覧の作り直しでは消えない）
+function openTagEditor(tab, anchor) {
+  closeMenu();
+  state.menuTabId = tab.id;
+  const form = node('form', 'tag-editor');
+  const input = node('input', 'tag-input');
+  input.type = 'text';
+  input.maxLength = 64;
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.placeholder = _t('tagPlaceholder');
+  input.setAttribute('aria-label', _t('editTag'));
+  input.value = tagOf(tab);
+  const buttons = node('div', 'tag-buttons');
+  const cancel = node('button', '', _t('tagCancel'));
+  cancel.type = 'button';
+  cancel.addEventListener('click', closeMenu);
+  const save = node('button', 'primary', _t('tagSave'));
+  save.type = 'submit';
+  buttons.append(cancel, save);
+  form.append(input, buttons);
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const value = input.value;
+    closeMenu();
+    action(() => saveTag(tab.id, value));
+  });
+  menu.append(form);
+  menu.hidden = false;
+  const width = menu.getBoundingClientRect().width;
+  const height = menu.getBoundingClientRect().height;
+  menu.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(anchor.bottom + 4, window.innerHeight - height - 8))}px`;
+  input.focus();
+  input.select();
+}
+async function saveTag(tabId, value) {
+  const ok = await chrome.runtime.sendMessage({ type: 'tag-set', tabId, tag: value });
+  if (!ok) throw new Error(_t('operationFailed'));
 }
 // 言語切替メニュー（🌐ボタン）。menuTabId='lang' でタブメニューと区別する
 function openLangMenu(rect) {
@@ -465,7 +543,19 @@ chrome.tabGroups.onUpdated.addListener(scheduleRender);
 chrome.tabGroups.onRemoved.addListener(scheduleRender);
 chrome.tabGroups.onMoved.addListener(scheduleRender);
 // レール側で切り替えられた言語へ追従する（'rail-pref' の lang 項目がそのまま届く）
-chrome.runtime.onMessage.addListener((msg) => {
+chrome.runtime.onMessage.addListener((msg, sender, respond) => {
+  // タグ: background からの最新の写しと、background が起動し直したときの写しの回収
+  // （どちらも background だけが送る。ページ由来の content script＝sender.tab ありは受けない）
+  const fromBackground = sender && sender.id === chrome.runtime.id && !sender.tab;
+  if (msg && msg.type === 'tags-changed' && fromBackground) {
+    acceptTags(msg);
+    scheduleRender();
+    return false;
+  }
+  if (msg && msg.type === 'tags-collect' && fromBackground) {
+    if (state.tagCopy) respond(state.tagCopy);
+    return false;
+  }
   if (msg && msg.type === 'rail-pref' && 'lang' in msg) {
     const code = (typeof msg.lang === 'string' && globalThis.MANY_TABS_MSGS && globalThis.MANY_TABS_MSGS[msg.lang])
       ? msg.lang : null;
@@ -473,3 +563,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 action(loadTabs);
+chrome.runtime.sendMessage({ type: 'tags-get' }).then((copy) => {
+  acceptTags(copy);
+  scheduleRender();
+}).catch(() => {});

@@ -78,6 +78,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .menu button:hover, .menu button:focus-visible { background: var(--surface-hover); }
 .menu button.danger { color: #ff9f9f; }
 .menu .menu-separator { height: 1px; background: var(--outline); margin: 5px 4px; }
+.tab-tag { color: var(--tag-color, var(--accent)); font-weight: 650; }
+.tag-editor { display: flex; flex-direction: column; gap: 6px; padding: 4px; }
+.tag-input { width: 100%; box-sizing: border-box; height: 30px; padding: 0 8px; border: 1px solid var(--outline); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; }
+.tag-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.tag-buttons { display: flex; gap: 4px; }
+.menu .tag-buttons button { flex: 1; text-align: center; padding: 7px 8px; }
+.menu .tag-buttons button.primary { background: var(--accent); color: var(--bg); font-weight: 650; }
 .toast { position: fixed; z-index: 40; bottom: 42px; left: 12px; right: 12px; padding: 10px 12px; border-radius: 8px; background: #3b2740; color: #ffd6dc; border: 1px solid #ae6374; box-shadow: 0 6px 16px #0007; font-size: 12px; }
 @media (max-width: 400px) {
   .topbar { padding: 9px 10px 8px; }

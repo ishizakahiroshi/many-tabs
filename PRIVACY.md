@@ -27,7 +27,9 @@ and the on-page rail UI and to perform the tab operations you request**
 is rendered locally and is never transmitted or persisted.
 
 Settings such as rail position, display mode, and language choice are kept only
-in memory and are discarded when Chrome restarts.
+in memory and are discarded when Chrome restarts. Tab tags you type are also
+kept only in memory, are removed when the tab is closed, and are discarded when
+Chrome restarts; they are never written to storage.
 
 ## Permission disclosures
 
@@ -76,7 +78,8 @@ Many Tabs は**何も**収集・送信・保存・共有しません。ローカ
 ローカルで描画されるだけで、送信・保存されません。
 
 レールの位置・表示モード・言語などの設定はメモリ上だけに保持され、
-Chrome の再起動で破棄されます。
+Chrome の再起動で破棄されます。手入力したタブのタグもメモリ上だけに保持し、
+そのタブを閉じると消え、Chrome の再起動で破棄されます。ストレージには書き込みません。
 
 ## 権限の説明
 

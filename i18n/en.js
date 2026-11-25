@@ -154,6 +154,18 @@ MANY_TABS_MSGS.en = {
   "duplicateTab": {
     "message": "Duplicate tab"
   },
+  "editTag": {
+    "message": "Set tag…"
+  },
+  "tagPlaceholder": {
+    "message": "Tag (e.g. dev), empty to clear"
+  },
+  "tagSave": {
+    "message": "Save"
+  },
+  "tagCancel": {
+    "message": "Cancel"
+  },
   "removeFromGroup": {
     "message": "Remove from group"
   },

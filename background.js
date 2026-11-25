@@ -77,6 +77,79 @@ function _t(key, ...subs) {
   return chrome.i18n.getMessage(key, subs.map(String)) || key;
 }
 
+// ▶ tags: タブごとの手入力タグ（表示専用。メモリのみ・ストレージ不使用・ページのタイトルは変えない）。
+// タブを閉じたら消す。Chrome は操作が無いと service worker を止めてメモリを捨てるので、
+// 配信先（サイドパネルと各タブのレール）にも写しを持たせ、起動し直したときに写しから戻す。
+// 写しは {rev, tags, covers}。rev は変更のたびに増える版、covers はその写しが把握しているタブ ID。
+// 戻すときはタブごとに「そのタブを把握している写しのうち rev が最大のもの」を採る
+// （古い写しで、外したタグが生き返らないようにするため）
+const TAG_MAX = 24;
+const tabTags = new Map();
+let tagsRev = 0;
+function cleanTag(v) {
+  if (typeof v !== 'string') return null;
+  // 制御文字と角括弧（表示の [ ] と紛れる）を除き、空白を詰める
+  const s = v.replace(/[\u0000-\u001f\u007f-\u009f\[\]]/g, '').replace(/\s+/g, ' ').trim();
+  return Array.from(s).slice(0, TAG_MAX).join('').trim();
+}
+function tagCopy(tabIds) {
+  const tags = {};
+  for (const id of tabIds) if (tabTags.has(id)) tags[id] = tabTags.get(id);
+  return { rev: tagsRev, tags, covers: tabIds };
+}
+function validCopy(c) {
+  return c && typeof c === 'object' && Number.isFinite(c.rev) && c.rev > 0 &&
+    c.tags && typeof c.tags === 'object' && Array.isArray(c.covers) ? c : null;
+}
+function withTimeout(promise, ms) {
+  return Promise.race([promise.catch(() => null), new Promise(r => setTimeout(() => r(null), ms))]);
+}
+async function restoreTags() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    const alive = new Set(tabs.map(t => t.id));
+    const copies = await Promise.all([
+      withTimeout(chrome.runtime.sendMessage({ type: 'tags-collect' }), 400),
+      ...tabs.filter(t => /^(https?|file):/.test(t.url || '')).map(t =>
+        withTimeout(chrome.tabs.sendMessage(t.id, { type: 'tags-collect' }, { frameId: 0 }), 400))
+    ]);
+    const valid = copies.map(validCopy).filter(Boolean);
+    const best = new Map();
+    for (const c of valid) {
+      tagsRev = Math.max(tagsRev, c.rev);
+      for (const id of c.covers) {
+        if (!alive.has(id)) continue;
+        const cur = best.get(id);
+        if (!cur || c.rev > cur.rev) best.set(id, c);
+      }
+    }
+    for (const [id, c] of best) {
+      const tag = cleanTag(c.tags[id]);
+      if (tag) tabTags.set(id, tag);
+    }
+  } catch (_) { /* 戻せなければ空から始める */ }
+}
+const tagsReady = restoreTags();
+async function setTag(tabId, value) {
+  await tagsReady;
+  const tag = cleanTag(value);
+  if (tag === null) return;
+  const tab = await chrome.tabs.get(tabId);
+  if (tag) tabTags.set(tabId, tag); else tabTags.delete(tabId);
+  tagsRev = Math.max(Date.now(), tagsRev + 1);
+  await notifyTags();
+  schedulePush(tab.windowId);
+}
+// サイドパネル（拡張のページ）へ最新の写しを配る
+async function notifyTags() {
+  const ids = (await chrome.tabs.query({})).map(t => t.id);
+  chrome.runtime.sendMessage({ type: 'tags-changed', ...tagCopy(ids) }).catch(() => {});
+}
+function fromExtensionPage(sender) {
+  return !!sender && sender.id === chrome.runtime.id && !sender.tab &&
+    typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
+}
+
 // レールから届く表示モード・位置の許可リスト（rail.js の setMode / setPosition と同じ値）
 const RAIL_MODES = new Set(['translucent', 'slim', 'hidden']);
 const RAIL_POSITIONS = new Set(['right', 'left', 'top', 'bottom']);
@@ -131,8 +204,11 @@ function schedulePush(windowId) {
 async function snapshot(windowId) {
   const [tabs, groups] = await Promise.all([
     chrome.tabs.query({ windowId }),
-    chrome.tabGroups.query({ windowId }).catch(() => [])
+    chrome.tabGroups.query({ windowId }).catch(() => []),
+    tagsReady
   ]);
+  // レールへ渡すタグは、そのウィンドウのタブの分だけ（写しとしても使われる）
+  const tags = tagCopy(tabs.map(t => t.id));
   return {
     type: 'rail-tabs',
     mode: COLLAPSED_MODE,
@@ -149,7 +225,8 @@ async function snapshot(windowId) {
       hasFav: !!t.favIconUrl,
       muted: !!(t.mutedInfo && t.mutedInfo.muted)
     })),
-    groups: groups.map(g => ({ id: g.id, title: g.title || '', color: g.color || 'grey' }))
+    groups: groups.map(g => ({ id: g.id, title: g.title || '', color: g.color || 'grey' })),
+    tags
   };
 }
 
@@ -172,6 +249,13 @@ chrome.tabs.onCreated.addListener(tab => schedulePush(tab.windowId));
 chrome.tabs.onRemoved.addListener((id, info) => {
   railPrefs.delete(id);
   visibleTabs.delete(id);
+  // タグはタブを閉じたときに消す（起動し直しの途中なら、戻し終えてから消す）
+  tagsReady.then(() => {
+    if (tabTags.delete(id)) {
+      tagsRev = Math.max(Date.now(), tagsRev + 1);
+      notifyTags().catch(() => {});
+    }
+  });
   schedulePush(info.windowId);
 });
 chrome.tabs.onUpdated.addListener((id, info, tab) => schedulePush(tab.windowId));
@@ -179,7 +263,15 @@ chrome.tabs.onMoved.addListener((id, info) => schedulePush(info.windowId));
 chrome.tabs.onAttached.addListener((id, info) => schedulePush(info.newWindowId));
 chrome.tabs.onDetached.addListener((id, info) => schedulePush(info.oldWindowId));
 chrome.tabs.onActivated.addListener(info => schedulePush(info.windowId));
-chrome.tabs.onReplaced.addListener(id => {
+chrome.tabs.onReplaced.addListener((id, removedId) => {
+  // 先読み等でタブの中身が差し替わっても、同じタブとしてタグを引き継ぐ
+  tagsReady.then(() => {
+    if (!tabTags.has(removedId)) return;
+    tabTags.set(id, tabTags.get(removedId));
+    tabTags.delete(removedId);
+    tagsRev = Math.max(Date.now(), tagsRev + 1);
+    notifyTags().catch(() => {});
+  });
   chrome.tabs.get(id).then(tab => schedulePush(tab.windowId)).catch(() => {});
 });
 chrome.tabGroups.onCreated.addListener(g => schedulePush(g.windowId));
@@ -188,6 +280,20 @@ chrome.tabGroups.onRemoved.addListener(g => schedulePush(g.windowId));
 chrome.tabGroups.onMoved.addListener(g => schedulePush(g.windowId));
 
 chrome.runtime.onMessage.addListener((msg, sender, respond) => {
+  // タグの取得・変更はサイドパネル（拡張のページ・sender.tab が無い）から来る
+  if (msg && (msg.type === 'tags-get' || msg.type === 'tag-set') && fromExtensionPage(sender)) {
+    if (msg.type === 'tags-get') {
+      tagsReady.then(() => chrome.tabs.query({}))
+        .then(tabs => respond(tagCopy(tabs.map(t => t.id))))
+        .catch(() => respond(null));
+      return true;
+    }
+    if (Number.isInteger(msg.tabId)) {
+      setTag(msg.tabId, msg.tag).then(() => respond(true)).catch(() => respond(false));
+      return true;
+    }
+    return false;
+  }
   // 言語の切替・問合せはサイドパネル（sender.tab が無い）からも来るので、win 判定より先に扱う
   if (msg && msg.type === 'lang-get') {
     respond({ lang: SESSION_LANG, msgs: catalogFor(SESSION_LANG) });
@@ -264,6 +370,7 @@ async function action(msg, win) {
     else if (msg.type === 'rail-mute') await chrome.tabs.update(msg.tabId, { muted: !!msg.muted });
     else if (msg.type === 'rail-duplicate') await chrome.tabs.duplicate(msg.tabId);
     else if (msg.type === 'rail-ungroup') await chrome.tabs.ungroup([msg.tabId]);
+    else if (msg.type === 'rail-tag') await setTag(msg.tabId, msg.tag);
     else if (msg.type === 'rail-move' && Number.isInteger(msg.index)) {
       await chrome.tabs.move(msg.tabId, { index: msg.index });
     } else if (msg.type === 'rail-group' && Number.isInteger(msg.groupId)) {

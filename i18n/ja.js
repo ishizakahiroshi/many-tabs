@@ -154,6 +154,18 @@ MANY_TABS_MSGS.ja = {
   "duplicateTab": {
     "message": "タブを複製"
   },
+  "editTag": {
+    "message": "タグを付ける…"
+  },
+  "tagPlaceholder": {
+    "message": "タグ（例: dev）・空で外す"
+  },
+  "tagSave": {
+    "message": "保存"
+  },
+  "tagCancel": {
+    "message": "キャンセル"
+  },
   "removeFromGroup": {
     "message": "グループから外す"
   },
