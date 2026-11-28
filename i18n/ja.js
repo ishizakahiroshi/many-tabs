@@ -80,6 +80,9 @@ MANY_TABS_MSGS.ja = {
       }
     }
   },
+  "currentTab": {
+    "message": "現在のタブ"
+  },
   "tabMenuAria": {
     "message": "「$TITLE$」の操作メニュー",
     "placeholders": {

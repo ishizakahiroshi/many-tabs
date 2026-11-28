@@ -205,6 +205,7 @@ function tabRow(tab) {
   main.type = 'button';
   main.title = tab.title || _t('untitledTab');
   main.setAttribute('aria-label', _t('switchToTab', tab.title || _t('untitledTab')));
+  if (tab.active) main.setAttribute('aria-description', _t('currentTab'));
   const iconUrl = faviconUrl(tab.url);
   if (iconUrl) {
     const img = node('img', 'tab-favicon');
@@ -440,10 +441,18 @@ document.addEventListener('keydown', (event) => {
   if (event.key === '/' && !editing && !event.ctrlKey && !event.metaKey && !event.altKey) {
     event.preventDefault(); search.focus();
   }
-  if (event.key === 'Escape') {
-    if (!menu.hidden) { closeMenu(); }
-    else if (document.activeElement === search) { search.value = ''; render(); search.blur(); }
+  if (event.key !== 'Escape') return;
+  if (!menu.hidden) {
+    event.preventDefault();
+    closeMenu();
+    return;
   }
+  const searchFocused = document.activeElement === search;
+  if (!searchFocused && !search.value) return;
+  event.preventDefault();
+  search.value = '';
+  render();
+  if (searchFocused) search.blur();
 });
 document.addEventListener('pointerdown', (event) => {
   if (!menu.hidden && !menu.contains(event.target)) closeMenu();

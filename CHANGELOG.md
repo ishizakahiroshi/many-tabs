@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.2] - 配布候補
+
 ### Security
 - `_favicon` の公開を動的 ID に限定（`use_dynamic_url`）。静的 ID のままだと、任意のページが `_favicon` を引いて、特定の URL を閲覧したことがあるかを判別できた
 - サイドパネルの CSP を `default-src 'none'` を基準に締めた（`object-src` / `base-uri` / `form-action` も `'none'`）
@@ -20,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - タブ一覧の配信を、表示中のタブと各ウィンドウのアクティブタブだけに絞った。裏のタブのレールは、表示されたときに一覧を取り直す（タブが多いときの負荷を軽減）
 
 ### Fixed
+- サイドパネルで検索欄からフォーカスを移した後も Esc で絞り込みを解除できる。メニューを開いている場合は先にメニューを閉じ、検索語を保つ
+- 現在のタブの切替ボタンに「現在のタブ」または「Current tab」の説明を付け、タブや表示言語の切替に追従する
 - 言語切替時、プレースホルダ付きの文言（`$TITLE$` など）が置換されず、そのまま表示されていた（実行時カタログの置換を chrome.i18n と同じく大文字小文字を区別しない規則に統一）
 - レールの設定メニュー・行メニューを開いている間に、タブの更新が届くとメニューが勝手に閉じていた（言語の張り直しを言語が変わったときだけにした）
 
