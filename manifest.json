@@ -4,7 +4,7 @@
   "short_name": "Many Tabs",
   "description": "__MSG_appDescription__",
   "default_locale": "ja",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "minimum_chrome_version": "132",
   "permissions": [
     "sidePanel",
