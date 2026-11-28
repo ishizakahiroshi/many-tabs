@@ -80,6 +80,9 @@ MANY_TABS_MSGS.en = {
       }
     }
   },
+  "currentTab": {
+    "message": "Current tab"
+  },
   "tabMenuAria": {
     "message": "Actions menu for \"$TITLE$\"",
     "placeholders": {

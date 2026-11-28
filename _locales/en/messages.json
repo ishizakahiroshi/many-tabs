@@ -78,6 +78,9 @@
       }
     }
   },
+  "currentTab": {
+    "message": "Current tab"
+  },
   "tabMenuAria": {
     "message": "Actions menu for \"$TITLE$\"",
     "placeholders": {
